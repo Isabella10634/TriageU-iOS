@@ -1,10 +1,18 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - COLORES TRIAGEU
+
 private let triageGreen = Color(
     red: 79.0 / 255.0,
     green: 122.0 / 255.0,
     blue: 104.0 / 255.0
+)
+
+private let triageGreenDark = Color(
+    red: 63.0 / 255.0,
+    green: 107.0 / 255.0,
+    blue: 89.0 / 255.0
 )
 
 private let softGreen = Color(
@@ -13,45 +21,223 @@ private let softGreen = Color(
     blue: 238.0 / 255.0
 )
 
+private let backgroundGreen = Color(
+    red: 248.0 / 255.0,
+    green: 251.0 / 255.0,
+    blue: 249.0 / 255.0
+)
+
+private let borderGreen = Color(
+    red: 221.0 / 255.0,
+    green: 229.0 / 255.0,
+    blue: 224.0 / 255.0
+)
+
+private let textSecondary = Color(
+    red: 102.0 / 255.0,
+    green: 112.0 / 255.0,
+    blue: 133.0 / 255.0
+)
+
+
+// MARK: - CONTENT VIEW PRINCIPAL
+
 struct ContentView: View {
 
     @State private var viewModel = TriageViewModel()
 
+    @State private var selectedTab: Int = 0
+
+    @State private var showAbout: Bool = false
+
     var body: some View {
 
-        TabView {
+        if showAbout {
 
-            TodayView()
-                .tabItem {
-                    Label("Hoy", systemImage: "house.fill")
+            AboutView(
+                onBack: {
+                    showAbout = false
                 }
+            )
 
-            RouteView()
-                .tabItem {
-                    Label("Mi Ruta", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                }
+        } else {
 
-            NewActivityView(viewModel: viewModel)
-                .tabItem {
-                    Label("Nueva", systemImage: "plus.circle.fill")
-                }
+            ZStack(alignment: .bottom) {
 
-            TriageProgressView()
-                .tabItem {
-                    Label("Progreso", systemImage: "chart.line.uptrend.xyaxis")
-                }
+                backgroundGreen
+                    .ignoresSafeArea()
 
-            ProfileView()
-                .tabItem {
-                    Label("Perfil", systemImage: "person.fill")
+                Group {
+
+                    switch selectedTab {
+
+                    case 0:
+                        TodayView()
+
+                    case 1:
+                        RouteView()
+
+                    case 2:
+                        NewActivityView(
+                            viewModel: viewModel
+                        )
+
+                    case 3:
+                        TriageProgressView()
+
+                    case 4:
+                        ProfileView(
+                            onAboutTap: {
+                                showAbout = true
+                            }
+                        )
+
+                    default:
+                        TodayView()
+                    }
                 }
+                .padding(.bottom, 78)
+
+                CustomBottomBar(
+                    selectedTab: $selectedTab
+                )
+            }
+            .ignoresSafeArea(
+                edges: .bottom
+            )
         }
-        .tint(triageGreen)
     }
 }
 
 
-// MARK: - HOY
+// MARK: - BARRA DE NAVEGACIÓN INFERIOR
+
+struct CustomBottomBar: View {
+
+    @Binding var selectedTab: Int
+
+    var body: some View {
+
+        ZStack(alignment: .bottom) {
+
+            HStack(spacing: 0) {
+
+                BottomBarItem(
+                    title: "Hoy",
+                    icon: "house.fill",
+                    selected: selectedTab == 0
+                ) {
+                    selectedTab = 0
+                }
+
+                BottomBarItem(
+                    title: "Mi Ruta",
+                    icon: "point.topleft.down.to.point.bottomright.curvepath",
+                    selected: selectedTab == 1
+                ) {
+                    selectedTab = 1
+                }
+
+                Spacer()
+                    .frame(width: 78)
+
+                BottomBarItem(
+                    title: "Progreso",
+                    icon: "chart.line.uptrend.xyaxis",
+                    selected: selectedTab == 3
+                ) {
+                    selectedTab = 3
+                }
+
+                BottomBarItem(
+                    title: "Perfil",
+                    icon: "person.fill",
+                    selected: selectedTab == 4
+                ) {
+                    selectedTab = 4
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 13)
+            .padding(.bottom, 24)
+            .background(Color.white)
+            .shadow(
+                color: Color.black.opacity(0.08),
+                radius: 10,
+                y: -4
+            )
+
+            Button {
+
+                selectedTab = 2
+
+            } label: {
+
+                Image(systemName: "plus")
+                    .font(
+                        .system(
+                            size: 30,
+                            weight: .medium
+                        )
+                    )
+                    .foregroundStyle(.white)
+                    .frame(
+                        width: 72,
+                        height: 72
+                    )
+                    .background(triageGreen)
+                    .clipShape(Circle())
+                    .shadow(
+                        color: Color.black.opacity(0.20),
+                        radius: 8,
+                        y: 4
+                    )
+            }
+            .offset(y: -42)
+        }
+    }
+}
+
+
+struct BottomBarItem: View {
+
+    let title: String
+    let icon: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+
+        Button(action: action) {
+
+            VStack(spacing: 5) {
+
+                Image(systemName: icon)
+                    .font(
+                        .system(
+                            size: 22,
+                            weight: .medium
+                        )
+                    )
+
+                Text(title)
+                    .font(.caption)
+            }
+            .foregroundStyle(
+                selected
+                ? triageGreen
+                : textSecondary
+            )
+            .frame(
+                maxWidth: .infinity
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+
+// MARK: - PANTALLA HOY
 
 struct TodayView: View {
 
@@ -64,81 +250,105 @@ struct TodayView: View {
     )
     private var activities: [TriageActivity]
 
+    private var pendingActivities: Int {
+
+        activities.filter {
+            !$0.completed
+        }.count
+    }
+
     var body: some View {
 
-        NavigationStack {
+        ScrollView {
 
-            ScrollView {
+            VStack(
+                alignment: .leading,
+                spacing: 22
+            ) {
 
                 VStack(
                     alignment: .leading,
-                    spacing: 20
+                    spacing: 5
                 ) {
 
                     Text("¡Buenos días!")
-                        .font(.largeTitle)
-                        .bold()
+                        .font(
+                            .system(
+                                size: 34,
+                                weight: .bold
+                            )
+                        )
 
-                    Text("Organiza tus actividades académicas")
-                        .foregroundStyle(.secondary)
+                    Text(
+                        Date.now.formatted(
+                            .dateTime
+                                .weekday(.wide)
+                                .day()
+                                .month(.wide)
+                        )
+                    )
+                    .font(.system(size: 17))
+                    .foregroundStyle(textSecondary)
+                }
 
-                    VStack(
-                        alignment: .leading,
-                        spacing: 6
-                    ) {
+                VStack(
+                    alignment: .leading,
+                    spacing: 6
+                ) {
 
-                        Text("Hoy tienes:")
-                            .bold()
-                            .foregroundStyle(triageGreen)
+                    Text("Hoy tienes:")
+                        .font(.headline)
+                        .foregroundStyle(
+                            triageGreenDark
+                        )
+
+                    Text(
+                        "\(pendingActivities) actividades pendientes"
+                    )
+                    .font(.system(size: 19))
+
+                    if !activities.isEmpty {
 
                         Text(
-                            "\(activities.filter { !$0.completed }.count) actividades pendientes"
+                            "\(activities.count) actividades registradas"
+                        )
+                        .font(.system(size: 17))
+                        .foregroundStyle(
+                            textSecondary
                         )
                     }
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: .leading
+                )
+                .padding(18)
+                .background(softGreen)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 18
                     )
-                    .padding()
-                    .background(softGreen)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: 18
+                )
+
+                Text("Tu plan recomendado")
+                    .font(
+                        .system(
+                            size: 25,
+                            weight: .bold
                         )
                     )
 
-                    Text("Tu plan recomendado")
-                        .font(.title2)
-                        .bold()
+                if activities.isEmpty {
 
-                    if activities.isEmpty {
+                    EmptyActivitiesView()
 
-                        VStack(spacing: 12) {
+                } else {
 
-                            Image(
-                                systemName: "checklist"
-                            )
-                            .font(.system(size: 40))
-                            .foregroundStyle(triageGreen)
+                    VStack(spacing: 16) {
 
-                            Text(
-                                "Todavía no tienes actividades."
-                            )
-                            .font(.headline)
-
-                            Text(
-                                "Agrégalas desde la pestaña Nueva."
-                            )
-                            .foregroundStyle(.secondary)
-                        }
-                        .frame(
-                            maxWidth: .infinity
-                        )
-                        .padding(.vertical, 40)
-
-                    } else {
-
-                        ForEach(activities) { activity in
+                        ForEach(
+                            activities
+                        ) { activity in
 
                             ActivityCard(
                                 activity: activity,
@@ -152,33 +362,113 @@ struct TodayView: View {
                         }
                     }
                 }
-                .padding()
             }
-            .navigationTitle("")
+            .padding(.horizontal, 20)
+            .padding(.top, 30)
+            .padding(.bottom, 30)
         }
+        .background(backgroundGreen)
     }
 }
 
 
-// MARK: - TARJETA ACTIVIDAD
+// MARK: - ESTADO VACÍO
+
+struct EmptyActivitiesView: View {
+
+    var body: some View {
+
+        VStack(spacing: 14) {
+
+            Image(
+                systemName: "checklist"
+            )
+            .font(
+                .system(size: 42)
+            )
+            .foregroundStyle(
+                triageGreen
+            )
+
+            Text(
+                "Todavía no tienes actividades."
+            )
+            .font(.headline)
+
+            Text(
+                "Agrégalas usando el botón +."
+            )
+            .foregroundStyle(
+                textSecondary
+            )
+        }
+        .frame(
+            maxWidth: .infinity
+        )
+        .padding(.vertical, 45)
+    }
+}
+
+
+// MARK: - TARJETA DE ACTIVIDAD
 
 struct ActivityCard: View {
 
     let activity: TriageActivity
+
     let onToggle: () -> Void
 
-    var priorityColor: Color {
+    private var priorityColor: Color {
 
         switch activity.priority {
 
         case "ALTA":
-            return .red
+            return Color(
+                red: 159 / 255,
+                green: 58 / 255,
+                blue: 56 / 255
+            )
 
         case "MEDIA":
-            return .orange
+            return Color(
+                red: 138 / 255,
+                green: 90 / 255,
+                blue: 0
+            )
 
         default:
-            return .secondary
+            return Color(
+                red: 71 / 255,
+                green: 85 / 255,
+                blue: 105 / 255
+            )
+        }
+    }
+
+    private var priorityBackground: Color {
+
+        switch activity.priority {
+
+        case "ALTA":
+            return Color(
+                red: 253 / 255,
+                green: 237 / 255,
+                blue: 236 / 255
+            )
+
+        case "MEDIA":
+            return Color(
+                red: 1.0,
+                green: 244 / 255,
+                blue: 214 / 255
+            )
+
+        default:
+            return Color(
+                red: 241 / 255,
+                green: 245 / 255,
+                blue: 249 / 255
+            )
         }
     }
 
@@ -191,46 +481,90 @@ struct ActivityCard: View {
 
             VStack(
                 alignment: .leading,
-                spacing: 8
+                spacing: 9
             ) {
 
                 Text(
                     "PRIORIDAD \(activity.priority)"
                 )
-                .font(.caption)
-                .bold()
-                .foregroundStyle(priorityColor)
+                .font(
+                    .system(
+                        size: 12,
+                        weight: .semibold
+                    )
+                )
+                .foregroundStyle(
+                    priorityColor
+                )
+                .padding(
+                    .horizontal,
+                    10
+                )
+                .padding(
+                    .vertical,
+                    6
+                )
+                .background(
+                    priorityBackground
+                )
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 8
+                    )
+                )
 
                 Text(activity.title)
-                    .font(.title3)
-                    .bold()
-
-                Text(activity.subject)
-                    .foregroundStyle(triageGreen)
+                    .font(
+                        .system(
+                            size: 22,
+                            weight: .semibold
+                        )
+                    )
 
                 Text(
                     "\(activity.durationMin) min recomendados"
                 )
-                .foregroundStyle(.secondary)
+                .font(.system(size: 16))
+                .foregroundStyle(
+                    triageGreen
+                )
 
-                if let weight =
-                    activity.weightPercent {
+                HStack(spacing: 5) {
 
                     Text(
-                        "\(weight) % de la nota"
+                        activity.dueDate,
+                        style: .date
                     )
-                    .foregroundStyle(.secondary)
+
+                    if let weight =
+                        activity.weightPercent {
+
+                        Text("·")
+
+                        Text(
+                            "\(weight) % de la nota"
+                        )
+                    }
                 }
+                .font(.system(size: 15))
+                .foregroundStyle(
+                    textSecondary
+                )
 
                 Text(
                     "Preparación: \(activity.preparation)/5"
                 )
-                .foregroundStyle(.secondary)
+                .font(.system(size: 15))
+                .foregroundStyle(
+                    textSecondary
+                )
             }
 
             Spacer()
 
-            Button(action: onToggle) {
+            Button(
+                action: onToggle
+            ) {
 
                 Image(
                     systemName:
@@ -238,11 +572,18 @@ struct ActivityCard: View {
                         ? "checkmark.circle.fill"
                         : "circle"
                 )
-                .font(.title)
-                .foregroundStyle(triageGreen)
+                .font(
+                    .system(size: 31)
+                )
+                .foregroundStyle(
+                    activity.completed
+                    ? triageGreen
+                    : textSecondary
+                )
             }
+            .buttonStyle(.plain)
         }
-        .padding()
+        .padding(18)
         .background(Color.white)
         .overlay {
 
@@ -250,7 +591,8 @@ struct ActivityCard: View {
                 cornerRadius: 18
             )
             .stroke(
-                Color.gray.opacity(0.25)
+                borderGreen,
+                lineWidth: 1
             )
         }
         .clipShape(
@@ -269,117 +611,468 @@ struct NewActivityView: View {
     @Environment(\.modelContext)
     private var modelContext
 
-    @Bindable var viewModel: TriageViewModel
+    @Bindable var viewModel:
+        TriageViewModel
 
     var body: some View {
 
-        NavigationStack {
+        ScrollView {
 
-            Form {
+            VStack(
+                alignment: .leading,
+                spacing: 24
+            ) {
 
-                Section("Información básica") {
+                Text("Nueva actividad")
+                    .font(
+                        .system(
+                            size: 34,
+                            weight: .bold
+                        )
+                    )
 
-                    Picker(
-                        "Materia",
-                        selection:
-                            $viewModel.newActivitySubject
-                    ) {
+                Text("Información básica")
+                    .font(
+                        .system(
+                            size: 22,
+                            weight: .semibold
+                        )
+                    )
+
+                VStack(spacing: 14) {
+
+                    InputTitle(
+                        text: "Materia"
+                    )
+
+                    Menu {
 
                         ForEach(
                             viewModel.subjects,
                             id: \.self
                         ) { subject in
 
-                            Text(subject)
-                                .tag(subject)
+                            Button(subject) {
+
+                                viewModel
+                                    .newActivitySubject =
+                                    subject
+                            }
                         }
+
+                    } label: {
+
+                        SelectionBox(
+                            text:
+                                viewModel
+                                .newActivitySubject
+                        )
                     }
 
-                    TextField(
-                        "Nombre de la actividad",
-                        text:
-                            $viewModel.newActivityTitle
+                    InputTitle(
+                        text: "Actividad"
                     )
 
-                    Picker(
-                        "Tipo",
-                        selection:
-                            $viewModel.newActivityType
-                    ) {
+                    TextField(
+                        "Ej. Parcial 1",
+                        text:
+                            $viewModel
+                            .newActivityTitle
+                    )
+                    .padding(16)
+                    .background(Color.white)
+                    .overlay {
+
+                        RoundedRectangle(
+                            cornerRadius: 15
+                        )
+                        .stroke(
+                            borderGreen,
+                            lineWidth: 1.5
+                        )
+                    }
+
+                    InputTitle(
+                        text: "Tipo"
+                    )
+
+                    Menu {
 
                         ForEach(
                             viewModel.activityTypes,
                             id: \.self
                         ) { type in
 
-                            Text(type)
-                                .tag(type)
+                            Button(type) {
+
+                                viewModel
+                                    .newActivityType =
+                                    type
+                            }
                         }
-                    }
-
-                    DatePicker(
-                        "Fecha",
-                        selection:
-                            $viewModel.newActivityDate,
-                        displayedComponents:
-                            .date
-                    )
-                }
-
-                Section("Ayúdanos a priorizarla") {
-
-                    TextField(
-                        "Peso en la materia (%)",
-                        text:
-                            $viewModel.newActivityWeight
-                    )
-                    .keyboardType(.numberPad)
-
-                    Stepper(
-                        "Preparación: \(viewModel.newActivityPreparation)/5",
-                        value:
-                            $viewModel.newActivityPreparation,
-                        in: 1...5
-                    )
-
-                    Stepper(
-                        "Tiempo estimado: \(viewModel.newActivityEstimatedHours) h",
-                        value:
-                            $viewModel.newActivityEstimatedHours,
-                        in: 1...12
-                    )
-                }
-
-                Section {
-
-                    Button {
-
-                        viewModel.saveActivity(
-                            context: modelContext
-                        )
 
                     } label: {
 
-                        Text("Guardar actividad")
-                            .frame(
-                                maxWidth: .infinity
-                            )
-                            .bold()
+                        SelectionBox(
+                            text:
+                                viewModel
+                                .newActivityType
+                        )
                     }
-                    .foregroundStyle(triageGreen)
 
-                    if let message =
-                        viewModel.lastMessage {
+                    InputTitle(
+                        text: "Fecha"
+                    )
 
-                        Text(message)
-                            .foregroundStyle(.secondary)
+                    DatePicker(
+                        "",
+                        selection:
+                            $viewModel
+                            .newActivityDate,
+                        displayedComponents:
+                            .date
+                    )
+                    .labelsHidden()
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
+                    .padding(12)
+                    .background(Color.white)
+                    .overlay {
+
+                        RoundedRectangle(
+                            cornerRadius: 15
+                        )
+                        .stroke(
+                            borderGreen,
+                            lineWidth: 1.5
+                        )
                     }
                 }
+
+                Text(
+                    "Ayúdanos a priorizarla"
+                )
+                .font(
+                    .system(
+                        size: 22,
+                        weight: .semibold
+                    )
+                )
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 16
+                ) {
+
+                    InputTitle(
+                        text:
+                            "Peso en la materia (Opcional)"
+                    )
+
+                    HStack {
+
+                        TextField(
+                            "Ej. 30",
+                            text:
+                                $viewModel
+                                .newActivityWeight
+                        )
+                        .keyboardType(
+                            .numberPad
+                        )
+
+                        Text("%")
+                            .foregroundStyle(
+                                textSecondary
+                            )
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                    .overlay {
+
+                        RoundedRectangle(
+                            cornerRadius: 15
+                        )
+                        .stroke(
+                            borderGreen,
+                            lineWidth: 1.5
+                        )
+                    }
+
+                    Text(
+                        "¿Qué tan preparado/a te sientes?"
+                    )
+                    .font(.system(size: 17))
+
+                    PreparationSelector(
+                        value:
+                            $viewModel
+                            .newActivityPreparation
+                    )
+
+                    InputTitle(
+                        text:
+                            "Tiempo estimado"
+                    )
+
+                    HStack {
+
+                        Button {
+
+                            if viewModel
+                                .newActivityEstimatedHours
+                                > 1 {
+
+                                viewModel
+                                    .newActivityEstimatedHours
+                                    -= 1
+                            }
+
+                        } label: {
+
+                            Image(
+                                systemName: "minus"
+                            )
+                            .font(.title3)
+                        }
+
+                        Spacer()
+
+                        Text(
+                            "\(viewModel.newActivityEstimatedHours) horas"
+                        )
+                        .font(.system(size: 18))
+
+                        Spacer()
+
+                        Button {
+
+                            if viewModel
+                                .newActivityEstimatedHours
+                                < 12 {
+
+                                viewModel
+                                    .newActivityEstimatedHours
+                                    += 1
+                            }
+
+                        } label: {
+
+                            Image(
+                                systemName: "plus"
+                            )
+                            .font(.title3)
+                        }
+                    }
+                    .foregroundStyle(
+                        triageGreenDark
+                    )
+                    .padding(16)
+                    .background(Color.white)
+                    .overlay {
+
+                        RoundedRectangle(
+                            cornerRadius: 15
+                        )
+                        .stroke(
+                            borderGreen,
+                            lineWidth: 1.5
+                        )
+                    }
+                }
+
+                Button {
+
+                    viewModel.saveActivity(
+                        context: modelContext
+                    )
+
+                } label: {
+
+                    Text(
+                        "Guardar actividad"
+                    )
+                    .font(
+                        .system(
+                            size: 18,
+                            weight: .semibold
+                        )
+                    )
+                    .foregroundStyle(.white)
+                    .frame(
+                        maxWidth: .infinity
+                    )
+                    .padding(.vertical, 17)
+                    .background(
+                        triageGreen
+                    )
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: 15
+                        )
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if let message =
+                    viewModel.lastMessage {
+
+                    Text(message)
+                        .font(.system(size: 14))
+                        .foregroundStyle(
+                            textSecondary
+                        )
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: .center
+                        )
+                }
             }
-            .navigationTitle(
-                "Nueva actividad"
+            .padding(.horizontal, 20)
+            .padding(.top, 30)
+            .padding(.bottom, 40)
+        }
+        .background(backgroundGreen)
+    }
+}
+
+
+struct InputTitle: View {
+
+    let text: String
+
+    var body: some View {
+
+        Text(text)
+            .font(.system(size: 17))
+            .foregroundStyle(
+                Color.primary
+            )
+            .frame(
+                maxWidth: .infinity,
+                alignment: .leading
+            )
+    }
+}
+
+
+struct SelectionBox: View {
+
+    let text: String
+
+    var body: some View {
+
+        HStack {
+
+            Text(text)
+                .foregroundStyle(
+                    Color.primary
+                )
+
+            Spacer()
+
+            Image(
+                systemName:
+                    "chevron.down"
+            )
+            .foregroundStyle(
+                textSecondary
             )
         }
+        .font(.system(size: 17))
+        .padding(16)
+        .background(Color.white)
+        .overlay {
+
+            RoundedRectangle(
+                cornerRadius: 15
+            )
+            .stroke(
+                borderGreen,
+                lineWidth: 1.5
+            )
+        }
+    }
+}
+
+
+// MARK: - SELECTOR PREPARACIÓN
+
+struct PreparationSelector: View {
+
+    @Binding var value: Int
+
+    var body: some View {
+
+        HStack(spacing: 10) {
+
+            Text("Muy\npoco")
+                .font(.caption)
+                .foregroundStyle(
+                    textSecondary
+                )
+
+            ForEach(
+                1...5,
+                id: \.self
+            ) { number in
+
+                Button {
+
+                    value = number
+
+                } label: {
+
+                    Text("\(number)")
+                        .font(
+                            .system(
+                                size: 16,
+                                weight: .medium
+                            )
+                        )
+                        .foregroundStyle(
+                            value == number
+                            ? triageGreenDark
+                            : Color.primary
+                        )
+                        .frame(
+                            width: 43,
+                            height: 43
+                        )
+                        .background(
+                            value == number
+                            ? softGreen
+                            : Color.white
+                        )
+                        .clipShape(Circle())
+                        .overlay {
+
+                            Circle()
+                                .stroke(
+                                    value == number
+                                    ? triageGreen
+                                    : borderGreen,
+                                    lineWidth:
+                                        value == number
+                                        ? 2
+                                        : 1
+                                )
+                        }
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text("Muy\nbien")
+                .font(.caption)
+                .foregroundStyle(
+                    textSecondary
+                )
+        }
+        .frame(
+            maxWidth: .infinity
+        )
     }
 }
 
@@ -389,93 +1082,152 @@ struct NewActivityView: View {
 struct RouteView: View {
 
     @Query(
-        sort: \TriageActivity.dueDate
+        sort:
+            \TriageActivity.dueDate
     )
-    private var activities: [TriageActivity]
+    private var activities:
+        [TriageActivity]
 
     var body: some View {
 
-        NavigationStack {
+        ScrollView {
 
-            ScrollView {
+            VStack(
+                alignment: .leading,
+                spacing: 20
+            ) {
 
-                VStack(
-                    alignment: .leading,
-                    spacing: 22
-                ) {
+                Text("Mi ruta")
+                    .font(
+                        .system(
+                            size: 34,
+                            weight: .bold
+                        )
+                    )
 
-                    Text("Próximas actividades")
-                        .foregroundStyle(.secondary)
+                Text("Próximos días")
+                    .font(.system(size: 18))
+                    .foregroundStyle(
+                        textSecondary
+                    )
 
-                    if activities.isEmpty {
+                if activities.isEmpty {
+
+                    VStack(
+                        alignment: .leading,
+                        spacing: 12
+                    ) {
 
                         Text(
-                            "Agrega actividades para construir tu ruta."
+                            "Aún no tienes una ruta."
                         )
-                        .foregroundStyle(.secondary)
-                        .padding(.top)
+                        .font(.headline)
 
-                    } else {
+                        Text(
+                            "Agrega actividades para construir tu planificación."
+                        )
+                        .foregroundStyle(
+                            textSecondary
+                        )
+                    }
+                    .padding(.top, 30)
 
-                        ForEach(activities) {
-                            activity in
+                } else {
 
-                            HStack(
-                                alignment: .top,
-                                spacing: 16
-                            ) {
+                    VStack(
+                        spacing: 0
+                    ) {
 
-                                Circle()
-                                    .fill(triageGreen)
-                                    .frame(
-                                        width: 18,
-                                        height: 18
-                                    )
+                        ForEach(
+                            activities
+                        ) { activity in
 
-                                VStack(
-                                    alignment: .leading,
-                                    spacing: 5
-                                ) {
-
-                                    Text(
-                                        activity.dueDate,
-                                        style: .date
-                                    )
-                                    .font(.caption)
-                                    .foregroundStyle(
-                                        triageGreen
-                                    )
-
-                                    Text(
-                                        activity.title
-                                    )
-                                    .font(.headline)
-
-                                    Text(
-                                        activity.subject
-                                    )
-                                    .foregroundStyle(
-                                        .secondary
-                                    )
-
-                                    Text(
-                                        activity.type
-                                    )
-                                    .font(.caption)
-                                }
-
-                                Spacer()
-                            }
+                            RouteItem(
+                                activity:
+                                    activity
+                            )
                         }
                     }
                 }
-                .frame(
-                    maxWidth: .infinity,
-                    alignment: .leading
-                )
-                .padding()
             }
-            .navigationTitle("Mi Ruta")
+            .frame(
+                maxWidth: .infinity,
+                alignment: .leading
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 30)
+            .padding(.bottom, 40)
+        }
+        .background(backgroundGreen)
+    }
+}
+
+
+struct RouteItem: View {
+
+    let activity: TriageActivity
+
+    var body: some View {
+
+        HStack(
+            alignment: .top,
+            spacing: 16
+        ) {
+
+            VStack(spacing: 0) {
+
+                Circle()
+                    .fill(triageGreen)
+                    .frame(
+                        width: 20,
+                        height: 20
+                    )
+
+                Rectangle()
+                    .fill(borderGreen)
+                    .frame(
+                        width: 3,
+                        height: 90
+                    )
+            }
+
+            VStack(
+                alignment: .leading,
+                spacing: 6
+            ) {
+
+                Text(
+                    activity.dueDate,
+                    style: .date
+                )
+                .font(.caption)
+                .foregroundStyle(
+                    triageGreenDark
+                )
+
+                Text(activity.title)
+                    .font(
+                        .system(
+                            size: 21,
+                            weight: .semibold
+                        )
+                    )
+
+                Text(activity.subject)
+                    .foregroundStyle(
+                        textSecondary
+                    )
+
+                Text(
+                    activity.type
+                )
+                .font(.caption)
+                .foregroundStyle(
+                    textSecondary
+                )
+            }
+
+            Spacer()
         }
     }
 }
@@ -503,96 +1255,135 @@ struct TriageProgressView: View {
         }
 
         return Double(completed)
-            / Double(activities.count)
+        / Double(activities.count)
     }
 
     var body: some View {
 
-        NavigationStack {
+        ScrollView {
 
-            ScrollView {
+            VStack(
+                alignment: .leading,
+                spacing: 25
+            ) {
+
+                Text("Mi progreso")
+                    .font(
+                        .system(
+                            size: 34,
+                            weight: .bold
+                        )
+                    )
+
+                Text("Avanza a tu ritmo")
+                    .font(.system(size: 18))
+                    .foregroundStyle(
+                        textSecondary
+                    )
+
+                Text("ESTA SEMANA")
+                    .font(
+                        .system(
+                            size: 15,
+                            weight: .semibold
+                        )
+                    )
+
+                HStack {
+
+                    Text(
+                        "\(completed) de \(activities.count) actividades realizadas"
+                    )
+                    .font(.system(size: 17))
+
+                    Spacer()
+
+                    Text(
+                        "\(Int(progress * 100)) %"
+                    )
+                    .font(
+                        .system(
+                            size: 21,
+                            weight: .bold
+                        )
+                    )
+                    .foregroundStyle(
+                        triageGreen
+                    )
+                }
+
+                ProgressView(
+                    value: progress
+                )
+                .tint(triageGreen)
+                .scaleEffect(
+                    x: 1,
+                    y: 2,
+                    anchor: .center
+                )
 
                 VStack(
                     alignment: .leading,
-                    spacing: 25
+                    spacing: 10
                 ) {
 
-                    Text("Avanza a tu ritmo")
-                        .foregroundStyle(.secondary)
-
-                    Text("ESTA SEMANA")
-                        .font(.headline)
-
-                    HStack {
-
-                        Text(
-                            "\(completed) de \(activities.count) actividades realizadas"
-                        )
-
-                        Spacer()
-
-                        Text(
-                            "\(Int(progress * 100)) %"
-                        )
-                        .bold()
-                        .foregroundStyle(triageGreen)
-                    }
-
-                    SwiftUI.ProgressView(
-                        value: progress
+                    Text(
+                        "\(activities.count) actividades registradas"
                     )
-                    .tint(triageGreen)
+                    .font(.system(size: 19))
 
-                    VStack(
-                        alignment: .leading,
-                        spacing: 8
-                    ) {
-
-                        Text(
-                            "\(activities.count) actividades registradas"
-                        )
-                        .font(.title3)
-
-                        Text(
-                            "\(activities.count - completed) pendientes"
-                        )
-                        .font(.title3)
-                    }
-
-                    VStack(
-                        alignment: .leading,
-                        spacing: 8
-                    ) {
-
-                        Text("Buen avance")
-                            .font(.headline)
-
-                        Text(
-                            "Continúa organizando tus actividades y completando tus pendientes."
-                        )
-                        .foregroundStyle(.secondary)
-                    }
-                    .padding()
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
+                    Text(
+                        "\(activities.count - completed) pendientes"
                     )
-                    .overlay {
-
-                        RoundedRectangle(
-                            cornerRadius: 18
-                        )
-                        .stroke(
-                            Color.gray.opacity(0.25)
-                        )
-                    }
+                    .font(.system(size: 19))
                 }
-                .padding()
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+
+                    Text("Buen avance")
+                        .font(
+                            .system(
+                                size: 20,
+                                weight: .semibold
+                            )
+                        )
+
+                    Text(
+                        "Continúa organizando tus actividades y completando tus pendientes."
+                    )
+                    .foregroundStyle(
+                        textSecondary
+                    )
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: .leading
+                )
+                .padding(18)
+                .background(Color.white)
+                .overlay {
+
+                    RoundedRectangle(
+                        cornerRadius: 18
+                    )
+                    .stroke(
+                        borderGreen,
+                        lineWidth: 1
+                    )
+                }
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 18
+                    )
+                )
             }
-            .navigationTitle(
-                "Mi progreso"
-            )
+            .padding(.horizontal, 20)
+            .padding(.top, 30)
         }
+        .background(backgroundGreen)
     }
 }
 
@@ -601,35 +1392,82 @@ struct TriageProgressView: View {
 
 struct ProfileView: View {
 
+    let onAboutTap: () -> Void
+
     var body: some View {
 
-        NavigationStack {
+        ScrollView {
 
             VStack(spacing: 25) {
 
-                Image(
-                    systemName:
-                        "person.circle.fill"
-                )
-                .font(.system(size: 85))
-                .foregroundStyle(triageGreen)
+                Text("Perfil")
+                    .font(
+                        .system(
+                            size: 34,
+                            weight: .bold
+                        )
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
 
-                Text("Estudiante TriageU")
-                    .font(.title2)
-                    .bold()
+                ZStack {
 
-                Text(
-                    "Prioriza tu tiempo. Avanza a tu ritmo."
-                )
-                .foregroundStyle(.secondary)
+                    Circle()
+                        .fill(softGreen)
+                        .frame(
+                            width: 120,
+                            height: 120
+                        )
+
+                    Image(
+                        systemName:
+                            "person.fill"
+                    )
+                    .font(
+                        .system(size: 52)
+                    )
+                    .foregroundStyle(
+                        triageGreen
+                    )
+                }
+
+                VStack(spacing: 5) {
+
+                    Text(
+                        "Estudiante TriageU"
+                    )
+                    .font(
+                        .system(
+                            size: 25,
+                            weight: .semibold
+                        )
+                    )
+
+                    Text(
+                        "Prioriza tu tiempo. Avanza a tu ritmo."
+                    )
+                    .foregroundStyle(
+                        textSecondary
+                    )
+                }
 
                 VStack(
                     alignment: .leading,
-                    spacing: 12
+                    spacing: 13
                 ) {
 
                     Text("Mis materias")
-                        .font(.headline)
+                        .font(
+                            .system(
+                                size: 20,
+                                weight: .semibold
+                            )
+                        )
+                        .foregroundStyle(
+                            textSecondary
+                        )
 
                     Text(
                         "• Aplicaciones Móviles"
@@ -643,52 +1481,78 @@ struct ProfileView: View {
                         "• Entornos Inteligentes"
                     )
                 }
+                .font(.system(size: 18))
                 .frame(
                     maxWidth: .infinity,
                     alignment: .leading
                 )
-                .padding()
+                .padding(20)
+                .background(Color.white)
                 .overlay {
 
                     RoundedRectangle(
                         cornerRadius: 18
                     )
                     .stroke(
-                        Color.gray.opacity(0.25)
+                        borderGreen
                     )
                 }
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 18
+                    )
+                )
 
-                NavigationLink {
+                Button(
+                    action: onAboutTap
+                ) {
 
-                    AboutView()
+                    HStack(spacing: 15) {
 
-                } label: {
+                        ZStack {
 
-                    HStack {
+                            Circle()
+                                .fill(
+                                    softGreen
+                                )
+                                .frame(
+                                    width: 48,
+                                    height: 48
+                                )
 
-                        Image(
-                            systemName:
-                                "info.circle.fill"
-                        )
-                        .foregroundStyle(
-                            triageGreen
-                        )
+                            Image(
+                                systemName:
+                                    "info.circle.fill"
+                            )
+                            .foregroundStyle(
+                                triageGreen
+                            )
+                        }
 
                         VStack(
-                            alignment: .leading
+                            alignment: .leading,
+                            spacing: 4
                         ) {
 
                             Text(
                                 "Acerca de TriageU"
                             )
-                            .bold()
+                            .font(
+                                .system(
+                                    size: 18,
+                                    weight: .semibold
+                                )
+                            )
+                            .foregroundStyle(
+                                Color.primary
+                            )
 
                             Text(
-                                "Descripción y créditos"
+                                "Descripción de la aplicación y créditos"
                             )
                             .font(.caption)
                             .foregroundStyle(
-                                .secondary
+                                textSecondary
                             )
                         }
 
@@ -698,25 +1562,33 @@ struct ProfileView: View {
                             systemName:
                                 "chevron.right"
                         )
+                        .foregroundStyle(
+                            textSecondary
+                        )
                     }
-                    .padding()
+                    .padding(18)
+                    .background(Color.white)
+                    .overlay {
+
+                        RoundedRectangle(
+                            cornerRadius: 18
+                        )
+                        .stroke(
+                            borderGreen
+                        )
+                    }
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: 18
+                        )
+                    )
                 }
                 .buttonStyle(.plain)
-                .overlay {
-
-                    RoundedRectangle(
-                        cornerRadius: 18
-                    )
-                    .stroke(
-                        Color.gray.opacity(0.25)
-                    )
-                }
-
-                Spacer()
             }
-            .padding()
-            .navigationTitle("Perfil")
+            .padding(.horizontal, 20)
+            .padding(.top, 30)
         }
+        .background(backgroundGreen)
     }
 }
 
@@ -725,83 +1597,201 @@ struct ProfileView: View {
 
 struct AboutView: View {
 
+    let onBack: () -> Void
+
     var body: some View {
 
-        ScrollView {
+        ZStack {
 
-            VStack(
-                alignment: .leading,
-                spacing: 22
-            ) {
+            backgroundGreen
+                .ignoresSafeArea()
 
-                Text("TriageU")
-                    .font(.largeTitle)
-                    .bold()
-                    .foregroundStyle(
-                        triageGreen
+            ScrollView {
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 24
+                ) {
+
+                    HStack {
+
+                        Button(
+                            action: onBack
+                        ) {
+
+                            Image(
+                                systemName:
+                                    "arrow.left"
+                            )
+                            .font(
+                                .system(
+                                    size: 21,
+                                    weight: .medium
+                                )
+                            )
+                            .foregroundStyle(
+                                Color.primary
+                            )
+                        }
+
+                        Text(
+                            "Acerca de TriageU"
+                        )
+                        .font(
+                            .system(
+                                size: 24,
+                                weight: .bold
+                            )
+                        )
+
+                        Spacer()
+                    }
+
+                    VStack(
+                        alignment: .leading,
+                        spacing: 6
+                    ) {
+
+                        Text("TriageU")
+                            .font(
+                                .system(
+                                    size: 34,
+                                    weight: .bold
+                                )
+                            )
+                            .foregroundStyle(
+                                triageGreen
+                            )
+
+                        Text(
+                            "Prioriza tu tiempo. Avanza a tu ritmo."
+                        )
+                        .foregroundStyle(
+                            textSecondary
+                        )
+                    }
+
+                    AboutCard(
+                        title:
+                            "¿Qué es TriageU?",
+                        text:
+                            """
+                            TriageU es una aplicación orientada a estudiantes universitarios. Permite registrar actividades académicas y organizarlas teniendo en cuenta la materia, la fecha, el peso en la nota, el nivel de preparación y el tiempo estimado.
+                            """
                     )
 
-                Text(
-                    "Prioriza tu tiempo. Avanza a tu ritmo."
-                )
-                .foregroundStyle(.secondary)
+                    AboutCard(
+                        title:
+                            "Funcionamiento",
+                        text:
+                            """
+                            El estudiante registra sus actividades académicas y TriageU calcula una prioridad según la preparación y el peso de la actividad. Las actividades se almacenan localmente para conservar la información.
+                            """
+                    )
 
-                Text("¿Qué es TriageU?")
-                    .font(.title2)
-                    .bold()
+                    AboutCard(
+                        title:
+                            "Tecnologías utilizadas",
+                        text:
+                            """
+                            • Swift
+                            • SwiftUI
+                            • SwiftData
+                            • ViewModel con @Observable
+                            """
+                    )
 
-                Text(
-                    """
-                    TriageU es una aplicación orientada a estudiantes universitarios. Permite registrar actividades académicas y organizarlas teniendo en cuenta la materia, la fecha, el peso en la nota, el nivel de preparación y el tiempo estimado.
-                    """
-                )
+                    AboutCard(
+                        title: "Créditos",
+                        text:
+                            """
+                            Aurelio José Muñoz Rios
+                            Isabella Plaza Díaz
+                            Isabella Perez Hoyos
+                            """
+                    )
 
-                Text("Tecnologías")
-                    .font(.title2)
-                    .bold()
-
-                Text(
-                    """
-                    • Swift
-                    • SwiftUI
-                    • SwiftData
-                    • Arquitectura con ViewModel
-                    """
-                )
-
-                Text("Créditos")
-                    .font(.title2)
-                    .bold()
-
-                Text(
-                    """
-                    Aurelio José Muñoz Rios
-                    Isabella Plaza Díaz
-                    Isabella Perez Hoyos
-                    """
-                )
+                    Text(
+                        "TriageU · Desarrollo de Aplicaciones Móviles"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(
+                        textSecondary
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .center
+                    )
+                    .padding(.top, 10)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 25)
+                .padding(.bottom, 35)
             }
-            .frame(
-                maxWidth: .infinity,
-                alignment: .leading
-            )
-            .padding()
         }
-        .navigationTitle(
-            "Acerca de TriageU"
+    }
+}
+
+
+struct AboutCard: View {
+
+    let title: String
+    let text: String
+
+    var body: some View {
+
+        VStack(
+            alignment: .leading,
+            spacing: 10
+        ) {
+
+            Text(title)
+                .font(
+                    .system(
+                        size: 20,
+                        weight: .semibold
+                    )
+                )
+
+            Text(text)
+                .font(.system(size: 16))
+                .foregroundStyle(
+                    textSecondary
+                )
+        }
+        .frame(
+            maxWidth: .infinity,
+            alignment: .leading
         )
-        .navigationBarTitleDisplayMode(
-            .inline
+        .padding(18)
+        .background(Color.white)
+        .overlay {
+
+            RoundedRectangle(
+                cornerRadius: 18
+            )
+            .stroke(
+                borderGreen,
+                lineWidth: 1
+            )
+        }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: 18
+            )
         )
     }
 }
 
 
+// MARK: - PREVIEW
+
 #Preview {
 
     ContentView()
         .modelContainer(
-            for: TriageActivity.self,
+            for:
+                TriageActivity.self,
             inMemory: true
         )
 }
