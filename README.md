@@ -218,12 +218,5 @@ flowchart TD
     E -- "Igual (±1 s)" --> E3[Sin cambios]
 ```
 
-### Flujo de datos
 
-1. El usuario crea o edita una actividad → se guarda en **SwiftData** (la app funciona sin red).
-2. El cambio se encola en `SyncQueue` y se envía a Supabase en cuanto hay conexión.
-3. Al abrir la app se descarga el estado remoto y se mezcla con el local.
-4. Se reprograman las notificaciones y se actualiza el widget.
-
----
 
