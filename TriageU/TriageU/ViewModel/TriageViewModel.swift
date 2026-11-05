@@ -8,20 +8,15 @@ final class TriageViewModel {
     // MARK: - Datos del formulario
 
     var newActivityTitle: String = ""
-    var newActivitySubject: String = "Comunicaciones Móviles"
+    var newActivitySubject: String = ""
     var newActivityType: String = "Parcial"
     var newActivityDate: Date = Date()
+    var newActivityHasTime: Bool = false
     var newActivityWeight: String = ""
     var newActivityPreparation: Int = 3
     var newActivityEstimatedHours: Int = 4
 
     var lastMessage: String?
-
-    let subjects = [
-        "Comunicaciones Móviles",
-        "Aplicaciones Móviles",
-        "Entornos Inteligentes"
-    ]
 
     let activityTypes = [
         "Parcial",
@@ -65,7 +60,15 @@ final class TriageViewModel {
             return
         }
 
+        guard !newActivitySubject.isEmpty else {
+            lastMessage = "Crea una materia primero (Perfil > Mis materias)."
+            return
+        }
+
         let weight = Int(newActivityWeight)
+        let due = newActivityHasTime
+            ? newActivityDate
+            : Calendar.current.startOfDay(for: newActivityDate)
 
         let priority = calculatePriority(
             preparation: newActivityPreparation,
@@ -76,11 +79,12 @@ final class TriageViewModel {
             title: cleanTitle,
             subject: newActivitySubject,
             type: newActivityType,
-            dueDate: newActivityDate,
+            dueDate: due,
             weightPercent: weight,
             preparation: newActivityPreparation,
             durationMin: newActivityEstimatedHours * 60,
-            priority: priority
+            priority: priority,
+            hasDueTime: newActivityHasTime
         )
 
         context.insert(activity)
@@ -104,6 +108,7 @@ final class TriageViewModel {
         newActivityTitle = ""
         newActivityType = "Parcial"
         newActivityDate = Date()
+        newActivityHasTime = false
         newActivityWeight = ""
         newActivityPreparation = 3
         newActivityEstimatedHours = 4

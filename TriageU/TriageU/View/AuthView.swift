@@ -80,6 +80,17 @@ struct AuthView: View {
                 .buttonStyle(.plain)
                 .disabled(auth.isLoading)
 
+                if !isRegistering {
+                    Button {
+                        Task { await auth.resetPassword(email: email) }
+                    } label: {
+                        Text("¿Olvidaste tu contraseña?")
+                            .font(.system(size: 15))
+                            .foregroundStyle(textSecondary)
+                    }
+                    .disabled(auth.isLoading)
+                }
+
                 Button {
                     isRegistering.toggle()
                     auth.errorMessage = nil

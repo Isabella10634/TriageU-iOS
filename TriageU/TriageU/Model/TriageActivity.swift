@@ -15,6 +15,7 @@ final class TriageActivity {
     var completed: Bool
     var createdAt: Date
     var updatedAt: Date = Date()
+    var hasDueTime: Bool = false
 
     init(
         title: String,
@@ -25,7 +26,8 @@ final class TriageActivity {
         preparation: Int,
         durationMin: Int,
         priority: String,
-        completed: Bool = false
+        completed: Bool = false,
+        hasDueTime: Bool = false
     ) {
         self.id = UUID()
         self.title = title
@@ -39,6 +41,7 @@ final class TriageActivity {
         self.completed = completed
         self.createdAt = Date()
         self.updatedAt = Date()
+        self.hasDueTime = hasDueTime
     }
 
     /// Marca la actividad como modificada ahora (para resolver conflictos).

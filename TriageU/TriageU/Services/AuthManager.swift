@@ -42,6 +42,29 @@ final class AuthManager {
         await authenticate(path: "signup", email: email, password: password)
     }
 
+    func resetPassword(email: String) async {
+        let clean = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            errorMessage = "Escribe tu correo para recuperar la contraseña."
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        infoMessage = nil
+        defer { isLoading = false }
+        do {
+            let (data, status) = try await post("recover", body: ["email": clean])
+            if (200..<300).contains(status) {
+                infoMessage = "Si el correo existe, te enviamos un enlace para restablecer la contraseña."
+            } else {
+                let err = try? decoder().decode(ErrorResponse.self, from: data)
+                errorMessage = Self.translate(err?.msg ?? err?.message ?? err?.errorDescription)
+            }
+        } catch {
+            errorMessage = "No se pudo conectar. Revisa tu conexión."
+        }
+    }
+
     func signOut() {
         session = nil
         Keychain.delete(key: keychainKey)

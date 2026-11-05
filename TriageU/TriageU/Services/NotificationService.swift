@@ -1,10 +1,10 @@
 import Foundation
 import UserNotifications
 
-/// Recordatorios locales de entrega (horas configurables en Perfil).
-/// - Día anterior (por defecto 9:00)
-/// - Día de la entrega (por defecto 8:00)
-/// - Prioridad ALTA: además, 3 días antes a la hora del día anterior
+/// Recordatorios locales de entrega.
+/// - Sin hora definida: día anterior y día de la entrega, a las horas configuradas en Perfil.
+/// - Con hora definida: 24 h y 2 h antes de la hora exacta.
+/// - Prioridad ALTA: aviso extra 3 días antes.
 enum NotificationService {
 
     static let hourBeforeKey = "reminderHourBefore"
@@ -35,7 +35,7 @@ enum NotificationService {
     }
 
     private static func identifiers(for id: UUID) -> [String] {
-        ["\(id.uuidString)-3d", "\(id.uuidString)-1d", "\(id.uuidString)-0d"]
+        ["3d", "1d", "0d", "24h", "2h"].map { "\(id.uuidString)-\($0)" }
     }
 
     static func cancel(id: UUID) {
@@ -52,35 +52,48 @@ enum NotificationService {
         guard !activity.completed else { return }
 
         let cal = Calendar.current
-        let dueDay = cal.startOfDay(for: activity.dueDate)
+        var fires: [(suffix: String, date: Date, body: String)] = []
+        let title = activity.title
 
-        let hourBefore = hour(hourBeforeKey, default: 9)
-        let hourDay = hour(hourDayKey, default: 8)
+        if activity.hasDueTime {
+            let due = activity.dueDate
+            if activity.priority == "ALTA",
+               let d = cal.date(byAdding: .day, value: -3, to: due) {
+                fires.append(("3d", d, "Prioridad alta: \(title) vence en 3 días"))
+            }
+            if let d = cal.date(byAdding: .hour, value: -24, to: due) {
+                fires.append(("24h", d, "Vence en 24 horas: \(title)"))
+            }
+            if let d = cal.date(byAdding: .hour, value: -2, to: due) {
+                fires.append(("2h", d, "Vence en 2 horas: \(title)"))
+            }
+        } else {
+            let hourBefore = hour(hourBeforeKey, default: 9)
+            let hourDay = hour(hourDayKey, default: 8)
+            let dueDay = cal.startOfDay(for: activity.dueDate)
 
-        var plan: [(suffix: String, daysBefore: Int, hour: Int, body: String)] = [
-            ("1d", 1, hourBefore, "Mañana vence: \(activity.title)"),
-            ("0d", 0, hourDay, "Hoy vence: \(activity.title)")
-        ]
-        if activity.priority == "ALTA" {
-            plan.insert(("3d", 3, hourBefore, "Prioridad alta: \(activity.title) vence en 3 días"), at: 0)
+            func at(_ daysBefore: Int, _ hour: Int) -> Date? {
+                guard let day = cal.date(byAdding: .day, value: -daysBefore, to: dueDay) else { return nil }
+                return cal.date(bySettingHour: hour, minute: 0, second: 0, of: day)
+            }
+            if activity.priority == "ALTA", let d = at(3, hourBefore) {
+                fires.append(("3d", d, "Prioridad alta: \(title) vence en 3 días"))
+            }
+            if let d = at(1, hourBefore) { fires.append(("1d", d, "Mañana vence: \(title)")) }
+            if let d = at(0, hourDay) { fires.append(("0d", d, "Hoy vence: \(title)")) }
         }
 
-        for item in plan {
-            guard let day = cal.date(byAdding: .day, value: -item.daysBefore, to: dueDay),
-                  let fire = cal.date(bySettingHour: item.hour, minute: 0, second: 0, of: day),
-                  fire > Date() else { continue }
-
+        for item in fires where item.date > Date() {
             let content = UNMutableNotificationContent()
             content.title = activity.subject
             content.body = item.body
             content.sound = .default
 
-            let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: item.date)
             let request = UNNotificationRequest(
                 identifier: "\(activity.id.uuidString)-\(item.suffix)",
                 content: content,
-                trigger: trigger
+                trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
             )
             try? await UNUserNotificationCenter.current().add(request)
         }

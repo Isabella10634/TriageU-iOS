@@ -12,9 +12,12 @@ struct EditActivityView: View {
     @State private var subject: String
     @State private var type: String
     @State private var dueDate: Date
+    @State private var hasTime: Bool
     @State private var weight: String
     @State private var preparation: Int
     @State private var hours: Int
+
+    @Query(sort: \Subject.name) private var subjectList: [Subject]
 
     private let helper = TriageViewModel()
 
@@ -24,13 +27,15 @@ struct EditActivityView: View {
         _subject = State(initialValue: activity.subject)
         _type = State(initialValue: activity.type)
         _dueDate = State(initialValue: activity.dueDate)
+        _hasTime = State(initialValue: activity.hasDueTime)
         _weight = State(initialValue: activity.weightPercent.map(String.init) ?? "")
         _preparation = State(initialValue: activity.preparation)
         _hours = State(initialValue: max(1, activity.durationMin / 60))
     }
 
     private var subjects: [String] {
-        helper.subjects.contains(subject) ? helper.subjects : helper.subjects + [subject]
+        let names = subjectList.map(\.name)
+        return names.contains(subject) ? names : names + [subject]
     }
 
     private var types: [String] {
@@ -49,6 +54,10 @@ struct EditActivityView: View {
                         ForEach(types, id: \.self) { Text($0).tag($0) }
                     }
                     DatePicker("Fecha", selection: $dueDate, displayedComponents: .date)
+                    Toggle("Definir hora de entrega", isOn: $hasTime)
+                    if hasTime {
+                        DatePicker("Hora", selection: $dueDate, displayedComponents: .hourAndMinute)
+                    }
                 }
 
                 Section("Priorización") {
@@ -84,7 +93,8 @@ struct EditActivityView: View {
         activity.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         activity.subject = subject
         activity.type = type
-        activity.dueDate = dueDate
+        activity.dueDate = hasTime ? dueDate : Calendar.current.startOfDay(for: dueDate)
+        activity.hasDueTime = hasTime
         activity.weightPercent = weightValue
         activity.preparation = preparation
         activity.durationMin = hours * 60

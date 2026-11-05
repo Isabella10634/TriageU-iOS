@@ -45,3 +45,34 @@ create policy "own rows update" on public.activities
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows delete" on public.activities
   for delete to authenticated using (auth.uid() = user_id);
+
+
+-- ========== Cambios v3 ==========
+alter table public.activities
+  add column if not exists has_due_time boolean not null default false;
+
+create table if not exists public.subjects (
+  id uuid primary key,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text not null,
+  color_hex text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists subjects_user_idx on public.subjects (user_id);
+alter table public.subjects enable row level security;
+
+drop policy if exists "own subjects select" on public.subjects;
+drop policy if exists "own subjects insert" on public.subjects;
+drop policy if exists "own subjects update" on public.subjects;
+drop policy if exists "own subjects delete" on public.subjects;
+
+create policy "own subjects select" on public.subjects
+  for select to authenticated using (auth.uid() = user_id);
+create policy "own subjects insert" on public.subjects
+  for insert to authenticated with check (auth.uid() = user_id);
+create policy "own subjects update" on public.subjects
+  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own subjects delete" on public.subjects
+  for delete to authenticated using (auth.uid() = user_id);
