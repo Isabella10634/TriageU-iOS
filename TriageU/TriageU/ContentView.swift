@@ -1,39 +1,39 @@
 import SwiftUI
 import SwiftData
-
+//commit example 2
 // MARK: - COLORES TRIAGEU
 
-private let triageGreen = Color(
+let triageGreen = Color(
     red: 79.0 / 255.0,
     green: 122.0 / 255.0,
     blue: 104.0 / 255.0
 )
 
-private let triageGreenDark = Color(
+let triageGreenDark = Color(
     red: 63.0 / 255.0,
     green: 107.0 / 255.0,
     blue: 89.0 / 255.0
 )
 
-private let softGreen = Color(
+let softGreen = Color(
     red: 234.0 / 255.0,
     green: 244.0 / 255.0,
     blue: 238.0 / 255.0
 )
 
-private let backgroundGreen = Color(
+let backgroundGreen = Color(
     red: 248.0 / 255.0,
     green: 251.0 / 255.0,
     blue: 249.0 / 255.0
 )
 
-private let borderGreen = Color(
+let borderGreen = Color(
     red: 221.0 / 255.0,
     green: 229.0 / 255.0,
     blue: 224.0 / 255.0
 )
 
-private let textSecondary = Color(
+let textSecondary = Color(
     red: 102.0 / 255.0,
     green: 112.0 / 255.0,
     blue: 133.0 / 255.0
@@ -250,11 +250,126 @@ struct TodayView: View {
     )
     private var activities: [TriageActivity]
 
-    private var pendingActivities: Int {
+    @Query(sort: \Subject.name)
+    private var subjects: [Subject]
 
-        activities.filter {
-            !$0.completed
-        }.count
+    enum StatusFilter: String, CaseIterable {
+        case all = "Todas", pending = "Pendientes", done = "Completadas"
+    }
+
+    enum SortMode: String, CaseIterable {
+        case dueDate = "Fecha de entrega", priority = "Prioridad", created = "Más recientes"
+    }
+
+    enum ViewMode: String, CaseIterable {
+        case list = "Lista", calendar = "Calendario"
+    }
+
+    @State private var editingActivity: TriageActivity?
+
+    // Deshacer borrado
+    @State private var hiddenIds: Set<UUID> = []
+    @State private var pendingDeleteId: UUID?
+    @State private var undoTask: Task<Void, Never>?
+
+    // Búsqueda y filtros
+    @State private var searchText = ""
+    @State private var subjectFilter: String?
+    @State private var priorityFilter: String?
+    @State private var statusFilter: StatusFilter = .all
+    @State private var sortMode: SortMode = .dueDate
+    @State private var mode: ViewMode = .list
+
+    private var visibleActivities: [TriageActivity] {
+        activities.filter { !hiddenIds.contains($0.id) }
+    }
+
+    private var pendingActivities: Int {
+        visibleActivities.filter { !$0.completed }.count
+    }
+
+    private func priorityRank(_ p: String) -> Int {
+        switch p { case "ALTA": return 0; case "MEDIA": return 1; default: return 2 }
+    }
+
+    private var filteredActivities: [TriageActivity] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let list = visibleActivities.filter { a in
+            if let subjectFilter, a.subject != subjectFilter { return false }
+            if let priorityFilter, a.priority != priorityFilter { return false }
+            switch statusFilter {
+            case .all: break
+            case .pending: if a.completed { return false }
+            case .done: if !a.completed { return false }
+            }
+            if !query.isEmpty,
+               !a.title.localizedCaseInsensitiveContains(query),
+               !a.subject.localizedCaseInsensitiveContains(query) { return false }
+            return true
+        }
+        switch sortMode {
+        case .dueDate:
+            return list.sorted { $0.dueDate < $1.dueDate }
+        case .priority:
+            return list.sorted {
+                priorityRank($0.priority) != priorityRank($1.priority)
+                ? priorityRank($0.priority) < priorityRank($1.priority)
+                : $0.dueDate < $1.dueDate
+            }
+        case .created:
+            return list.sorted { $0.createdAt > $1.createdAt }
+        }
+    }
+
+    private var hasActiveFilters: Bool {
+        subjectFilter != nil || priorityFilter != nil || statusFilter != .all || !searchText.isEmpty
+    }
+
+    private func color(for subject: String) -> Color {
+        subjects.first { $0.name == subject }?.color ?? triageGreen
+    }
+
+    private func toggle(_ activity: TriageActivity) {
+        activity.completed.toggle()
+        activity.touch()
+        try? modelContext.save()
+        Task {
+            await SupabaseService.upsert(activity)
+            await NotificationService.schedule(for: activity)
+        }
+    }
+
+    // MARK: Borrado con deshacer
+
+    private func beginDelete(_ activity: TriageActivity) {
+        commitPendingDelete()
+        pendingDeleteId = activity.id
+        hiddenIds.insert(activity.id)
+        undoTask = Task {
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled { commitPendingDelete() }
+        }
+    }
+
+    private func commitPendingDelete() {
+        undoTask?.cancel()
+        undoTask = nil
+        guard let id = pendingDeleteId else { return }
+        pendingDeleteId = nil
+        if let activity = activities.first(where: { $0.id == id }) {
+            NotificationService.cancel(id: id)
+            modelContext.delete(activity)
+            try? modelContext.save()
+            Task { await SupabaseService.delete(id: id) }
+        }
+        hiddenIds.remove(id)
+    }
+
+    private func undoDelete() {
+        undoTask?.cancel()
+        undoTask = nil
+        if let id = pendingDeleteId { hiddenIds.remove(id) }
+        pendingDeleteId = nil
     }
 
     var body: some View {
@@ -307,10 +422,10 @@ struct TodayView: View {
                     )
                     .font(.system(size: 19))
 
-                    if !activities.isEmpty {
+                    if !visibleActivities.isEmpty {
 
                         Text(
-                            "\(activities.count) actividades registradas"
+                            "\(visibleActivities.count) actividades registradas"
                         )
                         .font(.system(size: 17))
                         .foregroundStyle(
@@ -338,27 +453,54 @@ struct TodayView: View {
                         )
                     )
 
-                if activities.isEmpty {
+                if visibleActivities.isEmpty {
 
                     EmptyActivitiesView()
 
                 } else {
 
-                    VStack(spacing: 16) {
+                    filterBar
 
-                        ForEach(
-                            activities
-                        ) { activity in
+                    Picker("Vista", selection: $mode) {
+                        ForEach(ViewMode.allCases, id: \.self) {
+                            Text($0.rawValue).tag($0)
+                        }
+                    }
+                    .pickerStyle(.segmented)
 
-                            ActivityCard(
-                                activity: activity,
-                                onToggle: {
+                    if mode == .calendar {
 
-                                    activity.completed.toggle()
+                        ActivityCalendarView(
+                            activities: filteredActivities,
+                            subjectColor: color(for:),
+                            onToggle: toggle,
+                            onEdit: { editingActivity = $0 },
+                            onDelete: beginDelete
+                        )
 
-                                    try? modelContext.save()
-                                }
-                            )
+                    } else if filteredActivities.isEmpty {
+
+                        Text("Ninguna actividad coincide con los filtros.")
+                            .foregroundStyle(textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 30)
+
+                    } else {
+
+                        VStack(spacing: 16) {
+
+                            ForEach(
+                                filteredActivities
+                            ) { activity in
+
+                                ActivityCard(
+                                    activity: activity,
+                                    onToggle: { toggle(activity) },
+                                    subjectColor: color(for: activity.subject),
+                                    onEdit: { editingActivity = activity },
+                                    onDelete: { beginDelete(activity) }
+                                )
+                            }
                         }
                     }
                 }
@@ -368,6 +510,121 @@ struct TodayView: View {
             .padding(.bottom, 30)
         }
         .background(backgroundGreen)
+        .sheet(item: $editingActivity) { activity in
+            EditActivityView(activity: activity)
+        }
+        .overlay(alignment: .bottom) {
+            if pendingDeleteId != nil {
+                HStack {
+                    Text("Actividad eliminada")
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Button("Deshacer") { undoDelete() }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(hex: "#9FE0C0"))
+                }
+                .padding(16)
+                .background(Color.black.opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: pendingDeleteId)
+        .onDisappear { commitPendingDelete() }
+    }
+
+    // MARK: Barra de búsqueda y filtros
+
+    private var filterBar: some View {
+        VStack(spacing: 12) {
+
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(textSecondary)
+                TextField("Buscar actividad o materia", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(textSecondary)
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.white)
+            .overlay { RoundedRectangle(cornerRadius: 12).stroke(borderGreen) }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+
+                    Menu {
+                        Button("Todas las materias") { subjectFilter = nil }
+                        ForEach(subjects) { s in
+                            Button(s.name) { subjectFilter = s.name }
+                        }
+                    } label: {
+                        chip(subjectFilter ?? "Materia", active: subjectFilter != nil)
+                    }
+
+                    Menu {
+                        Button("Toda prioridad") { priorityFilter = nil }
+                        ForEach(["ALTA", "MEDIA", "BAJA"], id: \.self) { p in
+                            Button(p.capitalized) { priorityFilter = p }
+                        }
+                    } label: {
+                        chip(priorityFilter?.capitalized ?? "Prioridad", active: priorityFilter != nil)
+                    }
+
+                    Menu {
+                        ForEach(StatusFilter.allCases, id: \.self) { f in
+                            Button(f.rawValue) { statusFilter = f }
+                        }
+                    } label: {
+                        chip(statusFilter.rawValue, active: statusFilter != .all)
+                    }
+
+                    if mode == .list {
+                        Menu {
+                            ForEach(SortMode.allCases, id: \.self) { m in
+                                Button(m.rawValue) { sortMode = m }
+                            }
+                        } label: {
+                            chip("Orden: \(sortMode.rawValue)", active: false, icon: "arrow.up.arrow.down")
+                        }
+                    }
+
+                    if hasActiveFilters {
+                        Button {
+                            subjectFilter = nil
+                            priorityFilter = nil
+                            statusFilter = .all
+                            searchText = ""
+                        } label: {
+                            Text("Limpiar")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func chip(_ text: String, active: Bool, icon: String = "chevron.down") -> some View {
+        HStack(spacing: 5) {
+            Text(text)
+            Image(systemName: icon).font(.system(size: 10, weight: .bold))
+        }
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(active ? .white : triageGreenDark)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(active ? triageGreen : softGreen)
+        .clipShape(Capsule())
     }
 }
 
@@ -417,6 +674,9 @@ struct ActivityCard: View {
     let activity: TriageActivity
 
     let onToggle: () -> Void
+    var subjectColor: Color = triageGreen
+    var onEdit: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
 
     private var priorityColor: Color {
 
@@ -484,6 +744,15 @@ struct ActivityCard: View {
                 spacing: 9
             ) {
 
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(subjectColor)
+                        .frame(width: 9, height: 9)
+                    Text(activity.subject)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(textSecondary)
+                }
+
                 Text(
                     "PRIORIDAD \(activity.priority)"
                 )
@@ -536,6 +805,14 @@ struct ActivityCard: View {
                         style: .date
                     )
 
+                    if activity.hasDueTime {
+                        Text("·")
+                        Text(
+                            activity.dueDate,
+                            style: .time
+                        )
+                    }
+
                     if let weight =
                         activity.weightPercent {
 
@@ -562,6 +839,8 @@ struct ActivityCard: View {
 
             Spacer()
 
+            VStack(spacing: 18) {
+
             Button(
                 action: onToggle
             ) {
@@ -582,6 +861,23 @@ struct ActivityCard: View {
                 )
             }
             .buttonStyle(.plain)
+
+                if onEdit != nil || onDelete != nil {
+
+                    Menu {
+                        if let onEdit {
+                            Button("Editar", systemImage: "pencil", action: onEdit)
+                        }
+                        if let onDelete {
+                            Button("Eliminar", systemImage: "trash", role: .destructive, action: onDelete)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 24))
+                            .foregroundStyle(textSecondary)
+                    }
+                }
+            }
         }
         .padding(18)
         .background(Color.white)
@@ -613,6 +909,13 @@ struct NewActivityView: View {
 
     @Bindable var viewModel:
         TriageViewModel
+
+    @Query(sort: \Subject.name)
+    private var subjectList: [Subject]
+
+    private var subjectNames: [String] {
+        subjectList.map(\.name)
+    }
 
     var body: some View {
 
@@ -648,7 +951,7 @@ struct NewActivityView: View {
                     Menu {
 
                         ForEach(
-                            viewModel.subjects,
+                            subjectNames,
                             id: \.self
                         ) { subject in
 
@@ -748,6 +1051,22 @@ struct NewActivityView: View {
                             borderGreen,
                             lineWidth: 1.5
                         )
+                    }
+
+                    Toggle(
+                        "Definir hora de entrega",
+                        isOn: $viewModel.newActivityHasTime
+                    )
+                    .tint(triageGreen)
+
+                    if viewModel.newActivityHasTime {
+                        DatePicker(
+                            "",
+                            selection: $viewModel.newActivityDate,
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
@@ -935,6 +1254,11 @@ struct NewActivityView: View {
             .padding(.bottom, 40)
         }
         .background(backgroundGreen)
+        .onAppear {
+            if !subjectNames.contains(viewModel.newActivitySubject) {
+                viewModel.newActivitySubject = subjectNames.first ?? ""
+            }
+        }
     }
 }
 
@@ -1082,11 +1406,30 @@ struct PreparationSelector: View {
 struct RouteView: View {
 
     @Query(
-        sort:
-            \TriageActivity.dueDate
+        sort: \TriageActivity.dueDate
     )
-    private var activities:
-        [TriageActivity]
+    private var activities: [TriageActivity]
+
+    @State private var selectedSubject: String = "Todas"
+
+    private var subjects: [String] {
+        let uniqueSubjects = Set(
+            activities.map { $0.subject }
+        )
+
+        return ["Todas"] + uniqueSubjects.sorted()
+    }
+
+    private var filteredActivities: [TriageActivity] {
+
+        if selectedSubject == "Todas" {
+            return activities
+        }
+
+        return activities.filter {
+            $0.subject == selectedSubject
+        }
+    }
 
     var body: some View {
 
@@ -1105,44 +1448,132 @@ struct RouteView: View {
                         )
                     )
 
-                Text("Próximos días")
-                    .font(.system(size: 18))
+                Text(
+                    "Consulta tus actividades por materia"
+                )
+                .font(.system(size: 18))
+                .foregroundStyle(
+                    textSecondary
+                )
+
+                // FILTRO POR MATERIA
+                HStack {
+
+                    Text("Materia")
+                        .font(
+                            .system(
+                                size: 17,
+                                weight: .semibold
+                            )
+                        )
+
+                    Spacer()
+
+                    Picker(
+                        "Materia",
+                        selection: $selectedSubject
+                    ) {
+
+                        ForEach(
+                            subjects,
+                            id: \.self
+                        ) { subject in
+
+                            Text(subject)
+                                .tag(subject)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(triageGreen)
+                }
+                .padding()
+                .background(Color.white)
+                .overlay {
+
+                    RoundedRectangle(
+                        cornerRadius: 16
+                    )
+                    .stroke(borderGreen)
+                }
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 16
+                    )
+                )
+
+                HStack {
+
+                    Text(
+                        selectedSubject == "Todas"
+                        ? "Todas las actividades"
+                        : selectedSubject
+                    )
+                    .font(
+                        .system(
+                            size: 21,
+                            weight: .semibold
+                        )
+                    )
+
+                    Spacer()
+
+                    Text(
+                        "\(filteredActivities.count)"
+                    )
                     .foregroundStyle(
                         textSecondary
                     )
+                }
 
-                if activities.isEmpty {
+                if filteredActivities.isEmpty {
 
                     VStack(
-                        alignment: .leading,
+                        alignment: .center,
                         spacing: 12
                     ) {
 
+                        Image(
+                            systemName:
+                                "tray"
+                        )
+                        .font(
+                            .system(size: 38)
+                        )
+                        .foregroundStyle(
+                            triageGreen
+                        )
+
                         Text(
-                            "Aún no tienes una ruta."
+                            "No hay actividades para esta materia."
                         )
                         .font(.headline)
 
                         Text(
-                            "Agrega actividades para construir tu planificación."
+                            "Puedes registrar nuevas actividades desde la pestaña Nueva."
+                        )
+                        .multilineTextAlignment(
+                            .center
                         )
                         .foregroundStyle(
                             textSecondary
                         )
                     }
-                    .padding(.top, 30)
+                    .frame(
+                        maxWidth: .infinity
+                    )
+                    .padding(.top, 40)
 
                 } else {
 
                     VStack(
-                        spacing: 0
+                        spacing: 14
                     ) {
 
                         ForEach(
-                            activities
+                            filteredActivities
                         ) { activity in
 
-                            RouteItem(
+                            RouteSubjectCard(
                                 activity:
                                     activity
                             )
@@ -1163,72 +1594,107 @@ struct RouteView: View {
 }
 
 
-struct RouteItem: View {
+struct RouteSubjectCard: View {
 
     let activity: TriageActivity
 
+    private var priorityColor: Color {
+
+        switch activity.priority {
+
+        case "ALTA":
+            return .red
+
+        case "MEDIA":
+            return .orange
+
+        default:
+            return triageGreen
+        }
+    }
+
     var body: some View {
 
-        HStack(
-            alignment: .top,
-            spacing: 16
+        VStack(
+            alignment: .leading,
+            spacing: 10
         ) {
 
-            VStack(spacing: 0) {
+            HStack {
 
-                Circle()
-                    .fill(triageGreen)
-                    .frame(
-                        width: 20,
-                        height: 20
+                Text(activity.type)
+                    .font(.caption)
+                    .bold()
+                    .foregroundStyle(
+                        priorityColor
                     )
 
-                Rectangle()
-                    .fill(borderGreen)
-                    .frame(
-                        width: 3,
-                        height: 90
-                    )
+                Spacer()
+
+                Text(
+                    activity.completed
+                    ? "Terminada"
+                    : "Pendiente"
+                )
+                .font(.caption)
+                .bold()
+                .foregroundStyle(
+                    activity.completed
+                    ? triageGreen
+                    : .orange
+                )
             }
 
-            VStack(
-                alignment: .leading,
-                spacing: 6
-            ) {
+            Text(activity.title)
+                .font(
+                    .system(
+                        size: 20,
+                        weight: .semibold
+                    )
+                )
+
+            Text(activity.subject)
+                .foregroundStyle(
+                    triageGreenDark
+                )
+
+            HStack {
+
+                Image(
+                    systemName:
+                        "calendar"
+                )
 
                 Text(
                     activity.dueDate,
                     style: .date
                 )
-                .font(.caption)
-                .foregroundStyle(
-                    triageGreenDark
-                )
 
-                Text(activity.title)
-                    .font(
-                        .system(
-                            size: 21,
-                            weight: .semibold
-                        )
-                    )
-
-                Text(activity.subject)
-                    .foregroundStyle(
-                        textSecondary
-                    )
+                Spacer()
 
                 Text(
-                    activity.type
-                )
-                .font(.caption)
-                .foregroundStyle(
-                    textSecondary
+                    "Prioridad \(activity.priority.lowercased())"
                 )
             }
-
-            Spacer()
+            .font(.caption)
+            .foregroundStyle(
+                textSecondary
+            )
         }
+        .padding()
+        .background(Color.white)
+        .overlay {
+
+            RoundedRectangle(
+                cornerRadius: 16
+            )
+            .stroke(borderGreen)
+        }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: 16
+            )
+        )
     }
 }
 
@@ -1394,6 +1860,30 @@ struct ProfileView: View {
 
     let onAboutTap: () -> Void
 
+    private let auth = AuthManager.shared
+
+    @Environment(\.modelContext)
+    private var modelContext
+
+    @Query(sort: \Subject.name)
+    private var subjects: [Subject]
+
+    @State private var showSubjects = false
+    @State private var confirmSignOut = false
+
+    private let queue = SyncQueue.shared
+
+    @AppStorage(NotificationService.hourBeforeKey)
+    private var hourBefore: Int = 9
+
+    @AppStorage(NotificationService.hourDayKey)
+    private var hourDay: Int = 8
+
+    private func rescheduleReminders() {
+        let all = (try? modelContext.fetch(FetchDescriptor<TriageActivity>())) ?? []
+        Task { await NotificationService.rescheduleAll(all) }
+    }
+
     var body: some View {
 
         ScrollView {
@@ -1436,7 +1926,7 @@ struct ProfileView: View {
                 VStack(spacing: 5) {
 
                     Text(
-                        "Estudiante TriageU"
+                        auth.session?.email ?? "Estudiante TriageU"
                     )
                     .font(
                         .system(
@@ -1469,17 +1959,23 @@ struct ProfileView: View {
                             textSecondary
                         )
 
-                    Text(
-                        "• Aplicaciones Móviles"
-                    )
+                    ForEach(subjects) { subject in
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(subject.color)
+                                .frame(width: 11, height: 11)
+                            Text(subject.name)
+                        }
+                    }
 
-                    Text(
-                        "• Comunicaciones Móviles"
-                    )
-
-                    Text(
-                        "• Entornos Inteligentes"
-                    )
+                    Button {
+                        showSubjects = true
+                    } label: {
+                        Label("Administrar materias", systemImage: "slider.horizontal.3")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(triageGreenDark)
+                    }
+                    .padding(.top, 4)
                 }
                 .font(.system(size: 18))
                 .frame(
@@ -1502,6 +1998,35 @@ struct ProfileView: View {
                         cornerRadius: 18
                     )
                 )
+
+                VStack(alignment: .leading, spacing: 8) {
+
+                    Text("Recordatorios")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(textSecondary)
+
+                    Stepper(
+                        "Día anterior: \(String(format: "%02d", hourBefore)):00",
+                        value: $hourBefore,
+                        in: 0...23
+                    )
+
+                    Stepper(
+                        "Día de entrega: \(String(format: "%02d", hourDay)):00",
+                        value: $hourDay,
+                        in: 0...23
+                    )
+                }
+                .font(.system(size: 17))
+                .padding(20)
+                .background(Color.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(borderGreen)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .onChange(of: hourBefore) { rescheduleReminders() }
+                .onChange(of: hourDay) { rescheduleReminders() }
 
                 Button(
                     action: onAboutTap
@@ -1584,11 +2109,62 @@ struct ProfileView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                if auth.isSignedIn {
+
+                    if queue.pendingCount > 0 {
+                        Label(
+                            "\(queue.pendingCount) cambios pendientes de sincronizar",
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
+                        .font(.system(size: 14))
+                        .foregroundStyle(textSecondary)
+                    }
+
+                    Button(role: .destructive) {
+                        Task {
+                            await queue.flush()
+                            if queue.pendingCount > 0 {
+                                confirmSignOut = true
+                            } else {
+                                auth.signOut()
+                            }
+                        }
+                    } label: {
+                        Text("Cerrar sesión")
+                            .font(.system(size: 18, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.white)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 15)
+                                    .stroke(borderGreen, lineWidth: 1.5)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                    }
+                    .padding(.bottom, 30)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 30)
         }
         .background(backgroundGreen)
+        .sheet(isPresented: $showSubjects) {
+            SubjectsView()
+        }
+        .confirmationDialog(
+            "Hay cambios sin sincronizar",
+            isPresented: $confirmSignOut,
+            titleVisibility: .visible
+        ) {
+            Button("Cerrar sesión y descartarlos", role: .destructive) {
+                queue.clear()
+                auth.signOut()
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Sin conexión no se pudieron subir \(queue.pendingCount) cambios. Si cierras sesión ahora se perderán.")
+        }
     }
 }
 
@@ -1685,7 +2261,7 @@ struct AboutView: View {
                             "Funcionamiento",
                         text:
                             """
-                            El estudiante registra sus actividades académicas y TriageU calcula una prioridad según la preparación y el peso de la actividad. Las actividades se almacenan localmente para conservar la información.
+                            El estudiante registra sus actividades académicas y TriageU calcula una prioridad según la preparación y el peso de la actividad. Las actividades se almacenan localmente y se sincronizan con la nube para conservar la información entre dispositivos.
                             """
                     )
 
@@ -1698,6 +2274,8 @@ struct AboutView: View {
                             • SwiftUI
                             • SwiftData
                             • ViewModel con @Observable
+                            • Supabase (Auth + API REST)
+                            • WidgetKit y UserNotifications
                             """
                     )
 
@@ -1795,3 +2373,4 @@ struct AboutCard: View {
             inMemory: true
         )
 }
+
