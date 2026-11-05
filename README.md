@@ -15,12 +15,10 @@ Microproyecto de **Desarrollo de Aplicaciones Móviles** (Electiva) · Universid
 | ![Hoy](docs/screenshots/01-hoy.png) | ![Mi ruta](docs/screenshots/02-mi-ruta.png) | ![Progreso](docs/screenshots/03-progreso.png) |
 | Resumen, búsqueda, filtros, vista lista/calendario y tarjetas de actividad | Línea de tiempo de próximas entregas | Avance semanal de actividades completadas |
 
-| Nueva actividad | Perfil |
-|:---:|:---:|
-| ![Nueva actividad](docs/screenshots/04-nueva-actividad.png) | ![Perfil](docs/screenshots/05-perfil.png) |
-| Formulario con materia, tipo, fecha, hora opcional, peso, preparación y horas estimadas | Cuenta, materias editables y recordatorios |
-
-Además existe la pantalla **Acerca de** (descripción de la app, tecnologías y créditos), accesible desde Perfil.
+| Nueva actividad | Perfil | Acerca de |
+|:---:|:---:|:---:|
+| ![Nueva actividad](docs/screenshots/04-nueva-actividad.png) | ![Perfil](docs/screenshots/05-perfil.png) | ![Acerca de](docs/screenshots/06-acerca-de.png) |
+| Formulario con materia, tipo, fecha, hora opcional, peso, preparación y horas estimadas | Cuenta, materias editables y recordatorios | Descripción de la app, tecnologías y créditos (se abre desde Perfil) |
 
 ---
 
@@ -69,42 +67,156 @@ TriageUWidget/                Extensión WidgetKit
 | **Red** | **API REST de Supabase** (PostgREST + Auth) con `URLSession` y `Codable` |
 | **Sincronización** | `SyncQueue` + `SupabaseService.sync`: *last-write-wins* por `updated_at` |
 
-### Flujo de datos
+### Diagrama de capas
 
-1. El usuario crea o edita una actividad → se guarda en **SwiftData** (la app funciona sin red).
-2. El cambio se encola en `SyncQueue` y se envía a Supabase en cuanto hay conexión.
-3. Al abrir la app se descarga el estado remoto y se mezcla con el local.
-4. Se reprograman las notificaciones y se actualiza el widget.
+```mermaid
+flowchart TB
+    subgraph UI["Vista (SwiftUI)"]
+        V1[TodayView]
+        V2[RouteView]
+        V3[TriageProgressView]
+        V4[NewActivityView]
+        V5[ProfileView]
+        V6[AboutView]
+        V7[AuthView / EditActivityView / SubjectsView]
+    end
 
----
+    VM["TriageViewModel<br/>(@Observable)"]
 
-## Puesta en marcha
+    subgraph Local["Persistencia local"]
+        SD[(SwiftData<br/>TriageActivity · Subject)]
+        KC[(Keychain<br/>sesión)]
+    end
 
-Requisitos: Xcode 26+, iOS 26.2+.
+    subgraph Services["Servicios"]
+        AUTH[AuthManager]
+        SYNC[SupabaseService]
+        Q[SyncQueue]
+        NOTI[NotificationService]
+        WB[WidgetBridge]
+    end
 
-1. Abre `TriageU/TriageU.xcodeproj`.
-2. (Opcional, para la nube) Crea un proyecto en [Supabase](https://supabase.com), ejecuta `TriageU/supabase_schema.sql` en el SQL Editor y habilita Authentication → Email.
-3. Pon tu URL y *anon key* en `TriageU/TriageU/Services/SupabaseConfig.swift`. Sin credenciales la app funciona solo en local, sin login.
-4. Para el widget, selecciona tu equipo de firma en los targets `TriageU` y `TriageUWidget` y habilita la capacidad **App Groups** (`group.edu.unicauca.aplimovil.TriageU`).
-5. Ejecuta el esquema `TriageU` en un simulador o dispositivo.
+    subgraph Remote["Nube"]
+        SB[(Supabase<br/>Auth + PostgREST)]
+    end
 
----
+    W[Widget<br/>WidgetKit]
 
-## Cumplimiento del enunciado (Taller 2)
+    UI --> VM
+    UI -- "@Query" --> SD
+    VM --> SD
+    UI --> Q
+    Q --> SYNC
+    SYNC <--> SB
+    AUTH <--> SB
+    AUTH --> KC
+    SYNC <--> SD
+    UI --> NOTI
+    SD --> WB
+    WB -- "App Group" --> W
+```
 
-| Requisito | Estado | Dónde |
-|---|---|---|
-| ≥ 5 pantallas + Acerca de / créditos | Cumple | Hoy, Mi ruta, Nueva actividad, Progreso, Perfil, Acerca de (+ login y edición) |
-| Navegación entre pantallas | Cumple | Barra inferior personalizada, hojas modales y pantalla Acerca de |
-| Entradas de usuario | Cumple | `TextField`, `Toggle`, `Stepper`, `DatePicker`, `Menu` |
-| Gestión de estado | Cumple | `@State`, `@Binding`, `@Bindable`, `@Environment`, `@Observable` |
-| Almacenamiento local | Cumple | SwiftData |
-| Red / API en línea | Cumple | Supabase (REST + Auth) |
-| Arquitectura ViewModel + Red + Persistencia | Cumple | Carpetas `ViewModel/`, `Services/`, `Model/` |
-| Repositorio público, una rama por integrante | Revisar | Ramas `aurelio`, `Isabella`; verificar que todos tengan commits |
-| Diagrama de arquitectura a mano | Pendiente | Entregable del informe |
-| Reflexión SwiftUI vs Jetpack Compose | Pendiente | Entregable del informe |
+### Navegación entre pantallas
 
-### Funcionalidades adicionales (puntos extra)
+```mermaid
+flowchart LR
+    Start([Inicio]) --> Cfg{¿Supabase<br/>configurado?}
+    Cfg -- No --> Tabs
+    Cfg -- Sí --> Ses{¿Sesión<br/>activa?}
+    Ses -- No --> Auth[AuthView<br/>login · registro · recuperar]
+    Auth -- "inicia sesión" --> Tabs
+    Ses -- Sí --> Tabs
 
-Autenticación con Supabase Auth, sincronización con resolución de conflictos, cola de cambios sin conexión, notificaciones locales, widget con App Group, vista calendario y materias personalizables.
+    subgraph Tabs["Barra inferior"]
+        Hoy[Hoy]
+        Ruta[Mi ruta]
+        Nueva["+ Nueva actividad"]
+        Prog[Progreso]
+        Perfil[Perfil]
+    end
+
+    Hoy -- "editar" --> Edit[/EditActivityView<br/>hoja/]
+    Hoy -- "lista · calendario" --> Hoy
+    Perfil --> About[Acerca de]
+    Perfil -- "administrar" --> Subj[/SubjectsView<br/>hoja/]
+    Perfil -- "cerrar sesión" --> Auth
+```
+
+### Modelo de datos
+
+```mermaid
+erDiagram
+    USER ||--o{ ACTIVITY : "posee"
+    USER ||--o{ SUBJECT : "posee"
+    SUBJECT ||--o{ ACTIVITY : "agrupa (por nombre)"
+
+    ACTIVITY {
+        uuid id PK
+        string title
+        string subject
+        string type
+        date due_date
+        bool has_due_time
+        int weight_percent
+        int preparation
+        int duration_min
+        string priority
+        bool completed
+        date created_at
+        date updated_at
+    }
+
+    SUBJECT {
+        uuid id PK
+        string name
+        string color_hex
+        date created_at
+        date updated_at
+    }
+```
+
+### Sincronización (guardar una actividad)
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant V as Vista / ViewModel
+    participant DB as SwiftData
+    participant Q as SyncQueue
+    participant S as Supabase
+
+    U->>V: Guardar actividad
+    V->>V: Calcula prioridad
+    V->>DB: insert + save
+    V->>Q: enqueue(upsert)
+    V-->>U: Confirmación inmediata
+
+    alt Hay conexión
+        Q->>S: POST /activities (token del usuario)
+        S-->>Q: 201
+        Q->>Q: Quita el cambio de la cola
+    else Sin conexión
+        Q->>Q: Conserva el cambio en disco
+        Note over Q: Reintenta al volver la red,<br/>al abrir la app y cada 30 s
+    end
+```
+
+### Resolución de conflictos al sincronizar
+
+```mermaid
+flowchart TD
+    A[Descargar estado remoto] --> B{¿Existe en ambos lados?}
+    B -- "Solo remoto" --> C{¿Borrado pendiente<br/>en la cola?}
+    C -- Sí --> C1[Ignorar]
+    C -- No --> C2[Crear en local]
+    B -- "Solo local" --> D{¿Ya estaba sincronizado?}
+    D -- Sí --> D1[Se borró en otro dispositivo:<br/>eliminar en local]
+    D -- No --> D2[Encolar subida]
+    B -- "En ambos" --> E{Comparar updated_at}
+    E -- "Remoto más nuevo" --> E1[Aplicar remoto en local]
+    E -- "Local más nuevo" --> E2[Encolar subida]
+    E -- "Igual (±1 s)" --> E3[Sin cambios]
+```
+
+
+
