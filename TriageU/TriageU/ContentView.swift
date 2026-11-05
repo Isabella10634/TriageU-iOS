@@ -357,6 +357,8 @@ struct TodayView: View {
                                     activity.completed.toggle()
 
                                     try? modelContext.save()
+
+                                    Task { await SupabaseService.upsert(activity) }
                                 }
                             )
                         }
