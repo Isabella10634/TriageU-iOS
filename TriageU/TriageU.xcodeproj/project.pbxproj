@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		58E5BF2C309B694000A89EC7 /* TriageUWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 58E5BF20309B694000A89EC7 /* TriageUWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		58E5BEF3309B693000A89EC7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +25,34 @@
 			remoteGlobalIDString = 58E5BEE4309B692D00A89EC7;
 			remoteInfo = TriageU;
 		};
+		58E5BF2A309B694000A89EC7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 58E5BEDD309B692D00A89EC7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 58E5BF22309B694000A89EC7;
+			remoteInfo = TriageUWidget;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		58E5BF2B309B694000A89EC7 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				58E5BF2C309B694000A89EC7 /* TriageUWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		58E5BEE5309B692D00A89EC7 /* TriageU.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriageU.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		58E5BEF2309B693000A89EC7 /* TriageUTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TriageUTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		58E5BEFC309B693000A89EC7 /* TriageUUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TriageUUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		58E5BF20309B694000A89EC7 /* TriageUWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TriageUWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -43,6 +69,11 @@
 		58E5BEFF309B693000A89EC7 /* TriageUUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TriageUUITests;
+			sourceTree = "<group>";
+		};
+		58E5BF21309B694000A89EC7 /* TriageUWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TriageUWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +100,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		58E5BF24309B694000A89EC7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +116,7 @@
 				58E5BEE7309B692D00A89EC7 /* TriageU */,
 				58E5BEF5309B693000A89EC7 /* TriageUTests */,
 				58E5BEFF309B693000A89EC7 /* TriageUUITests */,
+				58E5BF21309B694000A89EC7 /* TriageUWidget */,
 				58E5BEE6309B692D00A89EC7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +127,7 @@
 				58E5BEE5309B692D00A89EC7 /* TriageU.app */,
 				58E5BEF2309B693000A89EC7 /* TriageUTests.xctest */,
 				58E5BEFC309B693000A89EC7 /* TriageUUITests.xctest */,
+				58E5BF20309B694000A89EC7 /* TriageUWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,10 +142,12 @@
 				58E5BEE1309B692D00A89EC7 /* Sources */,
 				58E5BEE2309B692D00A89EC7 /* Frameworks */,
 				58E5BEE3309B692D00A89EC7 /* Resources */,
+				58E5BF2B309B694000A89EC7 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				58E5BF29309B694000A89EC7 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				58E5BEE7309B692D00A89EC7 /* TriageU */,
@@ -163,6 +205,28 @@
 			productReference = 58E5BEFC309B693000A89EC7 /* TriageUUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		58E5BF22309B694000A89EC7 /* TriageUWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 58E5BF26309B694000A89EC7 /* Build configuration list for PBXNativeTarget "TriageUWidget" */;
+			buildPhases = (
+				58E5BF23309B694000A89EC7 /* Sources */,
+				58E5BF24309B694000A89EC7 /* Frameworks */,
+				58E5BF25309B694000A89EC7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				58E5BF21309B694000A89EC7 /* TriageUWidget */,
+			);
+			name = TriageUWidget;
+			packageProductDependencies = (
+			);
+			productName = TriageUWidget;
+			productReference = 58E5BF20309B694000A89EC7 /* TriageUWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +248,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 58E5BEE4309B692D00A89EC7;
 					};
+					58E5BF22309B694000A89EC7 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 58E5BEE0309B692D00A89EC7 /* Build configuration list for PBXProject "TriageU" */;
@@ -203,6 +270,7 @@
 				58E5BEE4309B692D00A89EC7 /* TriageU */,
 				58E5BEF1309B693000A89EC7 /* TriageUTests */,
 				58E5BEFB309B693000A89EC7 /* TriageUUITests */,
+				58E5BF22309B694000A89EC7 /* TriageUWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +291,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		58E5BEFA309B693000A89EC7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		58E5BF25309B694000A89EC7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +328,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		58E5BF23309B694000A89EC7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +347,11 @@
 			isa = PBXTargetDependency;
 			target = 58E5BEE4309B692D00A89EC7 /* TriageU */;
 			targetProxy = 58E5BEFD309B693000A89EC7 /* PBXContainerItemProxy */;
+		};
+		58E5BF29309B694000A89EC7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 58E5BF22309B694000A89EC7 /* TriageUWidget */;
+			targetProxy = 58E5BF2A309B694000A89EC7 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -393,6 +480,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TriageUApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -424,6 +512,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TriageUApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -530,6 +619,56 @@
 			};
 			name = Release;
 		};
+		58E5BF27309B694000A89EC7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TriageUWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "TriageUWidget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = TriageU;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = edu.unicauca.aplimovil.TriageU.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		58E5BF28309B694000A89EC7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TriageUWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "TriageUWidget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = TriageU;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = edu.unicauca.aplimovil.TriageU.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -565,6 +704,15 @@
 			buildConfigurations = (
 				58E5BF0D309B693000A89EC7 /* Debug */,
 				58E5BF0E309B693000A89EC7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		58E5BF26309B694000A89EC7 /* Build configuration list for PBXNativeTarget "TriageUWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				58E5BF27309B694000A89EC7 /* Debug */,
+				58E5BF28309B694000A89EC7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
