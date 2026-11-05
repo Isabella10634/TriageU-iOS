@@ -227,14 +227,3 @@ flowchart TD
 
 ---
 
-## Puesta en marcha
-
-Requisitos: Xcode 26+, iOS 26.2+.
-
-1. Abre `TriageU/TriageU.xcodeproj`.
-2. (Opcional, para la nube) Crea un proyecto en [Supabase](https://supabase.com), ejecuta `TriageU/supabase_schema.sql` en el SQL Editor y habilita Authentication → Email.
-3. Pon tu URL y *anon key* en `TriageU/TriageU/Services/SupabaseConfig.swift`. Sin credenciales la app funciona solo en local, sin login.
-4. Para el widget, selecciona tu equipo de firma en los targets `TriageU` y `TriageUWidget` y habilita la capacidad **App Groups** (`group.edu.unicauca.aplimovil.TriageU`).
-5. Ejecuta el esquema `TriageU` en un simulador o dispositivo.
-
----
