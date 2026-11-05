@@ -14,6 +14,7 @@ final class TriageActivity {
     var priority: String
     var completed: Bool
     var createdAt: Date
+    var updatedAt: Date = Date()
 
     init(
         title: String,
@@ -37,5 +38,9 @@ final class TriageActivity {
         self.priority = priority
         self.completed = completed
         self.createdAt = Date()
+        self.updatedAt = Date()
     }
+
+    /// Marca la actividad como modificada ahora (para resolver conflictos).
+    func touch() { updatedAt = Date() }
 }

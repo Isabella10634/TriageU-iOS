@@ -2,10 +2,9 @@ import Foundation
 import SwiftData
 
 /// Cliente mínimo de Supabase (PostgREST) sin dependencias externas.
-/// SwiftData sigue siendo la caché local; Supabase es la copia remota.
+/// SwiftData es la caché local; Supabase es la copia remota por usuario (RLS).
 struct ActivityDTO: Codable {
     let id: UUID
-    let deviceId: String
     var title: String
     var subject: String
     var type: String
@@ -16,33 +15,30 @@ struct ActivityDTO: Codable {
     var priority: String
     var completed: Bool
     var createdAt: Date
+    var updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, title, subject, type, preparation, priority, completed
-        case deviceId = "device_id"
         case dueDate = "due_date"
         case weightPercent = "weight_percent"
         case durationMin = "duration_min"
         case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 
 enum SupabaseService {
 
-    /// Identificador anónimo por instalación (sin login).
-    static let deviceId: String = {
-        let key = "triageu.deviceId"
-        if let saved = UserDefaults.standard.string(forKey: key) { return saved }
-        let new = UUID().uuidString
-        UserDefaults.standard.set(new, forKey: key)
-        return new
-    }()
-
     private static let table = "activities"
 
     private static let encoder: JSONEncoder = {
         let e = JSONEncoder()
-        e.dateEncodingStrategy = .iso8601
+        e.dateEncodingStrategy = .custom { date, encoder in
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var c = encoder.singleValueContainer()
+            try c.encode(f.string(from: date))
+        }
         return e
     }()
 
@@ -62,15 +58,34 @@ enum SupabaseService {
         return d
     }()
 
+    // MARK: - IDs ya sincronizados (para propagar borrados entre dispositivos)
+
+    private static func syncedKey(_ userId: String) -> String { "triageu.synced.\(userId)" }
+
+    @MainActor
+    private static func syncedIds() -> Set<UUID> {
+        guard let uid = AuthManager.shared.session?.userId else { return [] }
+        let raw = UserDefaults.standard.stringArray(forKey: syncedKey(uid)) ?? []
+        return Set(raw.compactMap(UUID.init(uuidString:)))
+    }
+
+    @MainActor
+    private static func setSyncedIds(_ ids: Set<UUID>) {
+        guard let uid = AuthManager.shared.session?.userId else { return }
+        UserDefaults.standard.set(ids.map(\.uuidString), forKey: syncedKey(uid))
+    }
+
+    // MARK: - HTTP
+
     private static func request(
-        path: String,
         method: String,
+        token: String,
         query: [URLQueryItem] = [],
         body: Data? = nil,
         extraHeaders: [String: String] = [:]
-    ) throws -> URLRequest {
+    ) -> URLRequest {
         var comps = URLComponents(
-            url: SupabaseConfig.url.appendingPathComponent("rest/v1/\(path)"),
+            url: SupabaseConfig.url.appendingPathComponent("rest/v1/\(table)"),
             resolvingAgainstBaseURL: false
         )!
         comps.queryItems = query.isEmpty ? nil : query
@@ -78,7 +93,7 @@ enum SupabaseService {
         req.httpMethod = method
         req.httpBody = body
         req.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(SupabaseConfig.anonKey)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         extraHeaders.forEach { req.setValue($1, forHTTPHeaderField: $0) }
         return req
@@ -96,84 +111,133 @@ enum SupabaseService {
 
     // MARK: - Operaciones
 
-    static func upsert(_ activity: TriageActivity) async {
-        guard SupabaseConfig.isConfigured else { return }
+    @discardableResult
+    static func upsert(_ activity: TriageActivity) async -> Bool {
+        guard SupabaseConfig.isConfigured, let token = await AuthManager.shared.validToken() else { return false }
         let dto = ActivityDTO(
-            id: activity.id, deviceId: deviceId, title: activity.title,
+            id: activity.id, title: activity.title,
             subject: activity.subject, type: activity.type, dueDate: activity.dueDate,
             weightPercent: activity.weightPercent, preparation: activity.preparation,
             durationMin: activity.durationMin, priority: activity.priority,
-            completed: activity.completed, createdAt: activity.createdAt
+            completed: activity.completed, createdAt: activity.createdAt,
+            updatedAt: activity.updatedAt
         )
         do {
-            let body = try encoder.encode(dto)
-            let req = try request(
-                path: table, method: "POST", body: body,
+            let req = request(
+                method: "POST", token: token, body: try encoder.encode(dto),
                 extraHeaders: ["Prefer": "resolution=merge-duplicates,return=minimal"]
             )
             _ = try await send(req)
+            await MainActor.run { setSyncedIds(syncedIds().union([dto.id])) }
+            return true
         } catch {
             print("Supabase upsert error:", error.localizedDescription)
+            return false
         }
     }
 
     static func delete(id: UUID) async {
-        guard SupabaseConfig.isConfigured else { return }
+        guard SupabaseConfig.isConfigured, let token = await AuthManager.shared.validToken() else { return }
         do {
-            let req = try request(
-                path: table, method: "DELETE",
-                query: [
-                    .init(name: "id", value: "eq.\(id.uuidString.lowercased())"),
-                    .init(name: "device_id", value: "eq.\(deviceId)")
-                ]
+            let req = request(
+                method: "DELETE", token: token,
+                query: [.init(name: "id", value: "eq.\(id.uuidString.lowercased())")]
             )
             _ = try await send(req)
+            await MainActor.run { setSyncedIds(syncedIds().subtracting([id])) }
         } catch {
             print("Supabase delete error:", error.localizedDescription)
         }
     }
 
-    static func fetchAll() async -> [ActivityDTO] {
-        guard SupabaseConfig.isConfigured else { return [] }
+    /// nil = error de red/servidor (no tocar datos locales).
+    static func fetchAll() async -> [ActivityDTO]? {
+        guard SupabaseConfig.isConfigured, let token = await AuthManager.shared.validToken() else { return nil }
         do {
-            let req = try request(
-                path: table, method: "GET",
-                query: [
-                    .init(name: "select", value: "*"),
-                    .init(name: "device_id", value: "eq.\(deviceId)")
-                ]
-            )
+            let req = request(method: "GET", token: token, query: [.init(name: "select", value: "*")])
             return try decoder.decode([ActivityDTO].self, from: try await send(req))
         } catch {
             print("Supabase fetch error:", error.localizedDescription)
-            return []
+            return nil
         }
     }
 
-    /// Descarga lo remoto y lo mezcla en SwiftData; sube lo local que falte.
+    /// Mezcla remoto y local (última escritura gana, por `updated_at`):
+    /// - remoto que no está en local → se crea localmente
+    /// - ambos existen → gana el más reciente (se aplica o se sube)
+    /// - local que estaba sincronizado y ya no está en remoto → se borró en otro dispositivo
+    /// - local nuevo → se sube
     @MainActor
     static func sync(context: ModelContext) async {
-        guard SupabaseConfig.isConfigured else { return }
-        let remote = await fetchAll()
+        guard SupabaseConfig.isConfigured, AuthManager.shared.isSignedIn,
+              let remote = await fetchAll() else { return }
+
         let local = (try? context.fetch(FetchDescriptor<TriageActivity>())) ?? []
         let localById = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let remoteIds = Set(remote.map(\.id))
+        let known = syncedIds()
+        let tolerance: TimeInterval = 1   // la nube guarda menos precisión que Date
 
-        for dto in remote where localById[dto.id] == nil {
-            let a = TriageActivity(
-                title: dto.title, subject: dto.subject, type: dto.type,
-                dueDate: dto.dueDate, weightPercent: dto.weightPercent,
-                preparation: dto.preparation, durationMin: dto.durationMin,
-                priority: dto.priority, completed: dto.completed
-            )
-            a.id = dto.id
-            a.createdAt = dto.createdAt
-            context.insert(a)
+        var toUpload: [TriageActivity] = []
+        var changed: [TriageActivity] = []
+
+        for dto in remote {
+            if let existing = localById[dto.id] {
+                let delta = dto.updatedAt.timeIntervalSince(existing.updatedAt)
+                if delta > tolerance {
+                    apply(dto, to: existing)
+                    changed.append(existing)
+                } else if delta < -tolerance {
+                    toUpload.append(existing)
+                }
+            } else {
+                let a = TriageActivity(
+                    title: dto.title, subject: dto.subject, type: dto.type,
+                    dueDate: dto.dueDate, weightPercent: dto.weightPercent,
+                    preparation: dto.preparation, durationMin: dto.durationMin,
+                    priority: dto.priority, completed: dto.completed
+                )
+                a.id = dto.id
+                a.createdAt = dto.createdAt
+                a.updatedAt = dto.updatedAt
+                context.insert(a)
+                changed.append(a)
+            }
+        }
+
+        for a in local where !remoteIds.contains(a.id) {
+            if known.contains(a.id) {
+                NotificationService.cancel(id: a.id)
+                context.delete(a)
+            } else {
+                toUpload.append(a)
+            }
         }
         try? context.save()
 
-        for a in local where !remoteIds.contains(a.id) {
-            await upsert(a)
-        }
+        setSyncedIds(remoteIds)
+        for a in toUpload { await upsert(a) }
+        for a in changed { await NotificationService.schedule(for: a) }
+    }
+
+    @MainActor
+    private static func apply(_ dto: ActivityDTO, to a: TriageActivity) {
+        a.title = dto.title
+        a.subject = dto.subject
+        a.type = dto.type
+        a.dueDate = dto.dueDate
+        a.weightPercent = dto.weightPercent
+        a.preparation = dto.preparation
+        a.durationMin = dto.durationMin
+        a.priority = dto.priority
+        a.completed = dto.completed
+        a.updatedAt = dto.updatedAt
+    }
+
+    /// Borra todo lo local (al cerrar sesión).
+    @MainActor
+    static func wipeLocal(context: ModelContext) {
+        try? context.delete(model: TriageActivity.self)
+        try? context.save()
     }
 }

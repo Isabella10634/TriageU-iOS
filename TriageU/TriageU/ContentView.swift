@@ -3,37 +3,37 @@ import SwiftData
 //commit example 2
 // MARK: - COLORES TRIAGEU
 
-private let triageGreen = Color(
+let triageGreen = Color(
     red: 79.0 / 255.0,
     green: 122.0 / 255.0,
     blue: 104.0 / 255.0
 )
 
-private let triageGreenDark = Color(
+let triageGreenDark = Color(
     red: 63.0 / 255.0,
     green: 107.0 / 255.0,
     blue: 89.0 / 255.0
 )
 
-private let softGreen = Color(
+let softGreen = Color(
     red: 234.0 / 255.0,
     green: 244.0 / 255.0,
     blue: 238.0 / 255.0
 )
 
-private let backgroundGreen = Color(
+let backgroundGreen = Color(
     red: 248.0 / 255.0,
     green: 251.0 / 255.0,
     blue: 249.0 / 255.0
 )
 
-private let borderGreen = Color(
+let borderGreen = Color(
     red: 221.0 / 255.0,
     green: 229.0 / 255.0,
     blue: 224.0 / 255.0
 )
 
-private let textSecondary = Color(
+let textSecondary = Color(
     red: 102.0 / 255.0,
     green: 112.0 / 255.0,
     blue: 133.0 / 255.0
@@ -250,6 +250,9 @@ struct TodayView: View {
     )
     private var activities: [TriageActivity]
 
+    @State private var editingActivity: TriageActivity?
+    @State private var activityToDelete: TriageActivity?
+
     private var pendingActivities: Int {
 
         activities.filter {
@@ -355,11 +358,17 @@ struct TodayView: View {
                                 onToggle: {
 
                                     activity.completed.toggle()
+                                    activity.touch()
 
                                     try? modelContext.save()
 
-                                    Task { await SupabaseService.upsert(activity) }
-                                }
+                                    Task {
+                                        await SupabaseService.upsert(activity)
+                                        await NotificationService.schedule(for: activity)
+                                    }
+                                },
+                                onEdit: { editingActivity = activity },
+                                onDelete: { activityToDelete = activity }
                             )
                         }
                     }
@@ -370,6 +379,29 @@ struct TodayView: View {
             .padding(.bottom, 30)
         }
         .background(backgroundGreen)
+        .sheet(item: $editingActivity) { activity in
+            EditActivityView(activity: activity)
+        }
+        .confirmationDialog(
+            "¿Eliminar esta actividad?",
+            isPresented: Binding(
+                get: { activityToDelete != nil },
+                set: { if !$0 { activityToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) {
+                if let activity = activityToDelete {
+                    let id = activity.id
+                    NotificationService.cancel(id: id)
+                    modelContext.delete(activity)
+                    try? modelContext.save()
+                    Task { await SupabaseService.delete(id: id) }
+                }
+                activityToDelete = nil
+            }
+            Button("Cancelar", role: .cancel) { activityToDelete = nil }
+        }
     }
 }
 
@@ -419,6 +451,8 @@ struct ActivityCard: View {
     let activity: TriageActivity
 
     let onToggle: () -> Void
+    var onEdit: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
 
     private var priorityColor: Color {
 
@@ -564,6 +598,8 @@ struct ActivityCard: View {
 
             Spacer()
 
+            VStack(spacing: 18) {
+
             Button(
                 action: onToggle
             ) {
@@ -584,6 +620,23 @@ struct ActivityCard: View {
                 )
             }
             .buttonStyle(.plain)
+
+                if onEdit != nil || onDelete != nil {
+
+                    Menu {
+                        if let onEdit {
+                            Button("Editar", systemImage: "pencil", action: onEdit)
+                        }
+                        if let onDelete {
+                            Button("Eliminar", systemImage: "trash", role: .destructive, action: onDelete)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 24))
+                            .foregroundStyle(textSecondary)
+                    }
+                }
+            }
         }
         .padding(18)
         .background(Color.white)
@@ -1396,6 +1449,22 @@ struct ProfileView: View {
 
     let onAboutTap: () -> Void
 
+    private let auth = AuthManager.shared
+
+    @Environment(\.modelContext)
+    private var modelContext
+
+    @AppStorage(NotificationService.hourBeforeKey)
+    private var hourBefore: Int = 9
+
+    @AppStorage(NotificationService.hourDayKey)
+    private var hourDay: Int = 8
+
+    private func rescheduleReminders() {
+        let all = (try? modelContext.fetch(FetchDescriptor<TriageActivity>())) ?? []
+        Task { await NotificationService.rescheduleAll(all) }
+    }
+
     var body: some View {
 
         ScrollView {
@@ -1438,7 +1507,7 @@ struct ProfileView: View {
                 VStack(spacing: 5) {
 
                     Text(
-                        "Estudiante TriageU"
+                        auth.session?.email ?? "Estudiante TriageU"
                     )
                     .font(
                         .system(
@@ -1504,6 +1573,35 @@ struct ProfileView: View {
                         cornerRadius: 18
                     )
                 )
+
+                VStack(alignment: .leading, spacing: 8) {
+
+                    Text("Recordatorios")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(textSecondary)
+
+                    Stepper(
+                        "Día anterior: \(String(format: "%02d", hourBefore)):00",
+                        value: $hourBefore,
+                        in: 0...23
+                    )
+
+                    Stepper(
+                        "Día de entrega: \(String(format: "%02d", hourDay)):00",
+                        value: $hourDay,
+                        in: 0...23
+                    )
+                }
+                .font(.system(size: 17))
+                .padding(20)
+                .background(Color.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(borderGreen)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .onChange(of: hourBefore) { rescheduleReminders() }
+                .onChange(of: hourDay) { rescheduleReminders() }
 
                 Button(
                     action: onAboutTap
@@ -1586,6 +1684,25 @@ struct ProfileView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                if auth.isSignedIn {
+
+                    Button(role: .destructive) {
+                        auth.signOut()
+                    } label: {
+                        Text("Cerrar sesión")
+                            .font(.system(size: 18, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.white)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 15)
+                                    .stroke(borderGreen, lineWidth: 1.5)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                    }
+                    .padding(.bottom, 30)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 30)

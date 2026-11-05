@@ -87,7 +87,10 @@ final class TriageViewModel {
 
         do {
             try context.save()
-            Task { await SupabaseService.upsert(activity) }
+            Task {
+                await SupabaseService.upsert(activity)
+                await NotificationService.schedule(for: activity)
+            }
             lastMessage = "Actividad guardada correctamente."
             resetForm()
         } catch {
