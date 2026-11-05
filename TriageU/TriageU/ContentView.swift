@@ -1406,11 +1406,30 @@ struct PreparationSelector: View {
 struct RouteView: View {
 
     @Query(
-        sort:
-            \TriageActivity.dueDate
+        sort: \TriageActivity.dueDate
     )
-    private var activities:
-        [TriageActivity]
+    private var activities: [TriageActivity]
+
+    @State private var selectedSubject: String = "Todas"
+
+    private var subjects: [String] {
+        let uniqueSubjects = Set(
+            activities.map { $0.subject }
+        )
+
+        return ["Todas"] + uniqueSubjects.sorted()
+    }
+
+    private var filteredActivities: [TriageActivity] {
+
+        if selectedSubject == "Todas" {
+            return activities
+        }
+
+        return activities.filter {
+            $0.subject == selectedSubject
+        }
+    }
 
     var body: some View {
 
@@ -1429,44 +1448,132 @@ struct RouteView: View {
                         )
                     )
 
-                Text("Próximos días")
-                    .font(.system(size: 18))
+                Text(
+                    "Consulta tus actividades por materia"
+                )
+                .font(.system(size: 18))
+                .foregroundStyle(
+                    textSecondary
+                )
+
+                // FILTRO POR MATERIA
+                HStack {
+
+                    Text("Materia")
+                        .font(
+                            .system(
+                                size: 17,
+                                weight: .semibold
+                            )
+                        )
+
+                    Spacer()
+
+                    Picker(
+                        "Materia",
+                        selection: $selectedSubject
+                    ) {
+
+                        ForEach(
+                            subjects,
+                            id: \.self
+                        ) { subject in
+
+                            Text(subject)
+                                .tag(subject)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(triageGreen)
+                }
+                .padding()
+                .background(Color.white)
+                .overlay {
+
+                    RoundedRectangle(
+                        cornerRadius: 16
+                    )
+                    .stroke(borderGreen)
+                }
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: 16
+                    )
+                )
+
+                HStack {
+
+                    Text(
+                        selectedSubject == "Todas"
+                        ? "Todas las actividades"
+                        : selectedSubject
+                    )
+                    .font(
+                        .system(
+                            size: 21,
+                            weight: .semibold
+                        )
+                    )
+
+                    Spacer()
+
+                    Text(
+                        "\(filteredActivities.count)"
+                    )
                     .foregroundStyle(
                         textSecondary
                     )
+                }
 
-                if activities.isEmpty {
+                if filteredActivities.isEmpty {
 
                     VStack(
-                        alignment: .leading,
+                        alignment: .center,
                         spacing: 12
                     ) {
 
+                        Image(
+                            systemName:
+                                "tray"
+                        )
+                        .font(
+                            .system(size: 38)
+                        )
+                        .foregroundStyle(
+                            triageGreen
+                        )
+
                         Text(
-                            "Aún no tienes una ruta."
+                            "No hay actividades para esta materia."
                         )
                         .font(.headline)
 
                         Text(
-                            "Agrega actividades para construir tu planificación."
+                            "Puedes registrar nuevas actividades desde la pestaña Nueva."
+                        )
+                        .multilineTextAlignment(
+                            .center
                         )
                         .foregroundStyle(
                             textSecondary
                         )
                     }
-                    .padding(.top, 30)
+                    .frame(
+                        maxWidth: .infinity
+                    )
+                    .padding(.top, 40)
 
                 } else {
 
                     VStack(
-                        spacing: 0
+                        spacing: 14
                     ) {
 
                         ForEach(
-                            activities
+                            filteredActivities
                         ) { activity in
 
-                            RouteItem(
+                            RouteSubjectCard(
                                 activity:
                                     activity
                             )
@@ -1487,72 +1594,107 @@ struct RouteView: View {
 }
 
 
-struct RouteItem: View {
+struct RouteSubjectCard: View {
 
     let activity: TriageActivity
 
+    private var priorityColor: Color {
+
+        switch activity.priority {
+
+        case "ALTA":
+            return .red
+
+        case "MEDIA":
+            return .orange
+
+        default:
+            return triageGreen
+        }
+    }
+
     var body: some View {
 
-        HStack(
-            alignment: .top,
-            spacing: 16
+        VStack(
+            alignment: .leading,
+            spacing: 10
         ) {
 
-            VStack(spacing: 0) {
+            HStack {
 
-                Circle()
-                    .fill(triageGreen)
-                    .frame(
-                        width: 20,
-                        height: 20
+                Text(activity.type)
+                    .font(.caption)
+                    .bold()
+                    .foregroundStyle(
+                        priorityColor
                     )
 
-                Rectangle()
-                    .fill(borderGreen)
-                    .frame(
-                        width: 3,
-                        height: 90
-                    )
+                Spacer()
+
+                Text(
+                    activity.completed
+                    ? "Terminada"
+                    : "Pendiente"
+                )
+                .font(.caption)
+                .bold()
+                .foregroundStyle(
+                    activity.completed
+                    ? triageGreen
+                    : .orange
+                )
             }
 
-            VStack(
-                alignment: .leading,
-                spacing: 6
-            ) {
+            Text(activity.title)
+                .font(
+                    .system(
+                        size: 20,
+                        weight: .semibold
+                    )
+                )
+
+            Text(activity.subject)
+                .foregroundStyle(
+                    triageGreenDark
+                )
+
+            HStack {
+
+                Image(
+                    systemName:
+                        "calendar"
+                )
 
                 Text(
                     activity.dueDate,
                     style: .date
                 )
-                .font(.caption)
-                .foregroundStyle(
-                    triageGreenDark
-                )
 
-                Text(activity.title)
-                    .font(
-                        .system(
-                            size: 21,
-                            weight: .semibold
-                        )
-                    )
-
-                Text(activity.subject)
-                    .foregroundStyle(
-                        textSecondary
-                    )
+                Spacer()
 
                 Text(
-                    activity.type
-                )
-                .font(.caption)
-                .foregroundStyle(
-                    textSecondary
+                    "Prioridad \(activity.priority.lowercased())"
                 )
             }
-
-            Spacer()
+            .font(.caption)
+            .foregroundStyle(
+                textSecondary
+            )
         }
+        .padding()
+        .background(Color.white)
+        .overlay {
+
+            RoundedRectangle(
+                cornerRadius: 16
+            )
+            .stroke(borderGreen)
+        }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: 16
+            )
+        )
     }
 }
 
@@ -2231,3 +2373,4 @@ struct AboutCard: View {
             inMemory: true
         )
 }
+
