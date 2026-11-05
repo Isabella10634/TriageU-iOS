@@ -1,5 +1,3 @@
-
-
 import Foundation
 import Observation
 import SwiftData
@@ -32,7 +30,18 @@ final class TriageViewModel {
     ]
 
 
-    // MARK: - Validación del formulario
+    // MARK: - Validación
+
+
+    private func validateForm() -> String? {
+        ActivityFormValidator.validate(
+            title: newActivityTitle,
+            subject: newActivitySubject,
+            weight: newActivityWeight,
+            estimatedHours: newActivityEstimatedHours,
+            preparation: newActivityPreparation
+        )
+    }
 
 
     var canSave: Bool {
@@ -40,55 +49,15 @@ final class TriageViewModel {
     }
 
 
-    private func validateForm() -> String? {
-        let cleanTitle = newActivityTitle.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-
-
-        let cleanSubject = newActivitySubject.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-
-
-        guard !cleanTitle.isEmpty else {
-            return "Escribe el nombre de la actividad."
-        }
-
-
-        guard !cleanSubject.isEmpty else {
-            return "Crea una materia primero (Perfil > Mis materias)."
-        }
-
-
-        if !newActivityWeight.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        ).isEmpty {
-            guard let weight = Int(newActivityWeight),
-                  (0...100).contains(weight) else {
-                return "El porcentaje debe ser un número entre 0 y 100."
-            }
-        }
-
-
-        guard newActivityEstimatedHours > 0 else {
-            return "La duración debe ser mayor que cero."
-        }
-
-
-        guard (1...5).contains(newActivityPreparation) else {
-            return "El nivel de preparación debe estar entre 1 y 5."
-        }
-
-
-        return nil
-    }
-
-
     // MARK: - Prioridad
 
 
-    func calculatePriority(preparation: Int, weight: Int?) -> String {
+    func calculatePriority(
+        preparation: Int,
+        weight: Int?
+    ) -> String {
+
+
         let activityWeight = weight ?? 0
 
 
