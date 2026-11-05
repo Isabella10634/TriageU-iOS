@@ -129,12 +129,32 @@ enum SupabaseService {
     }
 
     private static func send(_ req: URLRequest) async throws -> Data {
+
+
         let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let msg = String(data: data, encoding: .utf8) ?? ""
-            throw NSError(domain: "Supabase", code: (response as? HTTPURLResponse)?.statusCode ?? -1,
-                          userInfo: [NSLocalizedDescriptionKey: msg])
+
+
+        guard let http = response as? HTTPURLResponse else {
+            throw SupabaseAPIError.invalidResponse
         }
+
+
+        guard (200..<300).contains(http.statusCode) else {
+
+
+            let message = String(
+                data: data,
+                encoding: .utf8
+            ) ?? "El servidor no proporcionó detalles."
+
+
+            throw SupabaseAPIError.httpError(
+                statusCode: http.statusCode,
+                message: message
+            )
+        }
+
+
         return data
     }
 
