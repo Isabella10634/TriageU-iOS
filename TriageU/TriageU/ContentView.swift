@@ -2119,7 +2119,7 @@ struct AboutView: View {
                             "Funcionamiento",
                         text:
                             """
-                            El estudiante registra sus actividades académicas y TriageU calcula una prioridad según la preparación y el peso de la actividad. Las actividades se almacenan localmente para conservar la información.
+                            El estudiante registra sus actividades académicas y TriageU calcula una prioridad según la preparación y el peso de la actividad. Las actividades se almacenan localmente y se sincronizan con la nube para conservar la información entre dispositivos.
                             """
                     )
 
@@ -2132,6 +2132,8 @@ struct AboutView: View {
                             • SwiftUI
                             • SwiftData
                             • ViewModel con @Observable
+                            • Supabase (Auth + API REST)
+                            • WidgetKit y UserNotifications
                             """
                     )
 
